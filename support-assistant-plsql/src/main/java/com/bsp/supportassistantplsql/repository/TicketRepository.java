@@ -9,6 +9,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Repository
 public class TicketRepository {
@@ -46,6 +47,7 @@ public class TicketRepository {
     }
 
 
+
     private TicketResponse toTicket(ResultSet rs, int rowNumber) throws SQLException {
         return new TicketResponse(
                 rs.getLong("ID"),
@@ -56,8 +58,6 @@ public class TicketRepository {
                 rs.getTimestamp("CREATED_AT").toLocalDateTime(),
                 rs.getTimestamp("DUE_BY").toLocalDateTime());
     }
-
-
 
 
 

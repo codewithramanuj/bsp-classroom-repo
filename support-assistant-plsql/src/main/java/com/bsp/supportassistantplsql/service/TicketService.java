@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class TicketService {
@@ -25,7 +26,10 @@ public class TicketService {
     }
 
     public List<TicketResponse> findTickets(String status){
-        status = status.toUpperCase();
+        if (status != null){
+            status = status.toUpperCase();
+        }
+
         return ticketRepo.findTickets(status);
     }
 

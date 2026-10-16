@@ -1,6 +1,7 @@
 package com.bsp.supportassistantplsql.dto;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 public record TicketResponse(
         long id,
@@ -10,4 +11,7 @@ public record TicketResponse(
         String priority,
         LocalDateTime createdAt,
         LocalDateTime dueBy) {
+
+
+
 }
