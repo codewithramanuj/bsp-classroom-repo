@@ -37,6 +37,7 @@
 | A missing parent that opens an empty cursor | The client sees an empty answer, not a `404` | Check the parent first and raise an error |
 | No index on the foreign key | Slow comment queries on a big table | Create the index yourself |
 | Dropping the parent table first | `ORA-02449` | Drop the child first |
+| Dropping while another session holds rows that are not saved | `ORA-00054`, and only part of `99-drop.sql` works | `ROLLBACK` in that session first |
 | A rolled-back create | The sequence number is used. The next id is higher | Normal for an Oracle sequence |
 | `@Transactional` on the test class that checks a rollback | The service joins the test's transaction, and the data stays visible | Leave the test class without it |
 

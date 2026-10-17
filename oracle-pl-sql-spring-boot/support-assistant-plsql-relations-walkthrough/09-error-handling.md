@@ -22,43 +22,106 @@ Two of the numbers belong to the relationship:
 
 ### 9.1 The error body
 
-Every error has the same body:
+In the package `exception`, create `ApiError.java`. Every error has this body:
 
 ```java
-public record ApiError(int status, String error, String message, LocalDateTime timestamp) { }
-```
+package com.bsp.supportassistant.exception;
 
-### 9.2 The handler
+import java.time.LocalDateTime;
 
-A Spring class marked `@RestControllerAdvice` catches exceptions from every controller. A call that `RAISE_APPLICATION_ERROR` fails reaches Java as an `UncategorizedSQLException`. Oracle numbers these errors from 20000 to 20999. Anything else is a fault of the server, so the client gets a general message:
-
-```java
-@ExceptionHandler(UncategorizedSQLException.class)
-public ResponseEntity<ApiError> handleDatabase(UncategorizedSQLException ex) {
-    SQLException sqlException = ex.getSQLException();
-    int code = sqlException.getErrorCode();
-    if (code >= 20000 && code <= 20999) {
-        return build(statusFor(code), messageOf(sqlException));
-    }
-    return build(HttpStatus.INTERNAL_SERVER_ERROR, "The database call failed");
+// The body of every error response.
+public record ApiError(
+        int status,
+        String error,
+        String message,
+        LocalDateTime timestamp) {
 }
 ```
 
-The table above, as code:
+### 9.2 The handler class
+
+In the same package, create `GlobalExceptionHandler.java`. A Spring class marked `@RestControllerAdvice` catches exceptions from every controller, like a help desk that every department sends its problems to:
 
 ```java
-private HttpStatus statusFor(int oracleCode) {
-    if (oracleCode == 20003) {
-        return HttpStatus.NOT_FOUND;
+// One place that turns exceptions from every controller into an ApiError.
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+```
+
+The class must be inside `com.bsp.supportassistant` or one of its packages. Spring looks for classes only there.
+
+### 9.3 Catch the database error
+
+A call that `RAISE_APPLICATION_ERROR` refuses reaches Java as an `UncategorizedSQLException`. Inside it is the `SQLException` from the Oracle driver, and `getErrorCode()` gives the number without the minus sign: `20003`. Oracle numbers these errors from 20000 to 20999. Anything else is a fault of the server, so the client gets a general message. Add the method:
+
+```java
+    // A PL/SQL program called RAISE_APPLICATION_ERROR. Oracle numbers these from 20000 to 20999.
+    // Any other database error is a fault of the server, so the client gets a general message.
+    @ExceptionHandler(UncategorizedSQLException.class)
+    public ResponseEntity<ApiError> handleDatabase(UncategorizedSQLException ex) {
+        SQLException sqlException = ex.getSQLException();
+        int code = sqlException.getErrorCode();
+        if (code >= 20000 && code <= 20999) {
+            return build(statusFor(code), messageOf(sqlException));
+        }
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, "The database call failed");
     }
-    if (oracleCode == 20004 || oracleCode == 20006) {
-        return HttpStatus.CONFLICT;
+```
+
+`@ExceptionHandler` says which exception this method handles. `ResponseEntity` is an answer with a status code and a body.
+
+### 9.4 Choose the status
+
+The table above, as code. Every other number of the package is a problem with the request, so it is `400`:
+
+```java
+    // The error numbers are the ones listed at the top of the package specification.
+    private HttpStatus statusFor(int oracleCode) {
+        if (oracleCode == 20003) {
+            return HttpStatus.NOT_FOUND;
+        }
+        if (oracleCode == 20004 || oracleCode == 20006) {
+            return HttpStatus.CONFLICT;
+        }
+        return HttpStatus.BAD_REQUEST;
     }
-    return HttpStatus.BAD_REQUEST;
+```
+
+### 9.5 Keep the message, drop the rest
+
+Oracle's message has the number at the start, and `ORA-06512` lines after it:
+
+```text
+ORA-20003: Ticket 999 does not exist
+ORA-06512: at "YOUR_USERNAME.DESK_TICKET_PKG", line 13
+```
+
+The client needs only `Ticket 999 does not exist`. Take the first line, and keep the text after the first `": "`:
+
+```java
+    // Oracle writes "ORA-20001: Title is required", then lines about where it happened.
+    // Keep the text of the first line, after the colon.
+    private String messageOf(SQLException sqlException) {
+        String firstLine = sqlException.getMessage().lines().findFirst().orElse("");
+        return firstLine.substring(firstLine.indexOf(": ") + 2);
+    }
+```
+
+### 9.6 Build the answer
+
+The last method puts the parts together, and closes the class. `getReasonPhrase()` gives the name of the status, such as `Not Found`:
+
+```java
+    private ResponseEntity<ApiError> build(HttpStatus status, String message) {
+        ApiError body = new ApiError(status.value(), status.getReasonPhrase(), message, LocalDateTime.now());
+        return ResponseEntity.status(status).body(body);
+    }
 }
 ```
 
-`messageOf` keeps the text of the first line, after `ORA-20003: `. See the checkpoint for `messageOf` and `build`.
+Add the imports, and compare both files with the checkpoint. No other class changes: the handler works for every route of the controller.
+
+**Check:** run `mvn -q compile`. It prints nothing.
 
 ## Try it
 
@@ -88,7 +151,19 @@ curl -X POST http://localhost:8080/api/tickets/1/comments -H "Content-Type: appl
 
 `GET /api/tickets/999` now answers `404` with the same message.
 
-Now close ticket 3. Move it through the three steps, then add a comment:
+A ticket with no title, status `400`. This one comes from `create_ticket`:
+
+```bash
+curl -X POST http://localhost:8080/api/tickets -H "Content-Type: application/json" -d '{"priority":"HIGH"}'
+```
+
+```json
+{"status":400,"error":"Bad Request","message":"Title is required","timestamp":"2026-10-17T02:09:45.121408"}
+```
+
+The package checks the title before it takes a number from the sequence, so this refused call uses no id.
+
+Now close ticket 3. Move it to `RESOLVED`, then to `CLOSED`, then add a comment:
 
 ```bash
 curl -X PATCH http://localhost:8080/api/tickets/3/status -H "Content-Type: application/json" -d '{"status":"RESOLVED"}'

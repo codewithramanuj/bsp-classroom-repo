@@ -26,71 +26,114 @@ sequenceDiagram
 
 ### 7.1 The records
 
-A comment, as one row of the second cursor. It has no ticket id, because the object around it is the ticket:
+In the package `dto`, create `CommentResponse.java`. It is one row of the second cursor. It has no ticket id, because the object around it is the ticket:
 
 ```java
-public record CommentResponse(long id, String author, String body, LocalDateTime createdAt) { }
+package com.bsp.supportassistant.dto;
+
+import java.time.LocalDateTime;
+
+// One row of a comment cursor. The ticket it belongs to is the record around it, not a field here.
+public record CommentResponse(
+        long id,
+        String author,
+        String body,
+        LocalDateTime createdAt) {
+}
 ```
 
-The parent and its children together:
+Create `TicketWithComments.java`, the parent and its children together. A record can hold another record, and a list of records:
 
 ```java
-public record TicketWithComments(TicketResponse ticket, List<CommentResponse> comments) { }
+package com.bsp.supportassistant.dto;
+
+import java.util.List;
+
+// A parent and its children, as one JSON object: {"ticket": {...}, "comments": [...]}.
+public record TicketWithComments(TicketResponse ticket, List<CommentResponse> comments) {
+}
 ```
 
 The JSON has the same shape: `{"ticket": {...}, "comments": [...]}`.
 
+**Check:** run `mvn -q compile`. It prints nothing.
+
 ### 7.2 The repository: name both cursors
 
-`returningResultSet` is called once for each cursor. Each name must match the parameter name in the package, in upper case, and each cursor gets its own row mapper. `toTicket` is the one from step 5:
+Open `TicketRepository.java`. Add a fifth field:
 
 ```java
-this.getTicket = new SimpleJdbcCall(jdbcTemplate)
-        .withCatalogName(PACKAGE).withProcedureName("GET_TICKET")
-        .returningResultSet("P_TICKET", this::toTicket)
-        .returningResultSet("P_COMMENTS", this::toComment);
+    private final SimpleJdbcCall getTicket;
 ```
 
-The new row mapper reads one comment:
+Build the call at the end of the constructor. `returningResultSet` is called once for each cursor. Each name must match the parameter name in the package, in upper case, and each cursor gets its own row mapper. `toTicket` is the one from step 5:
 
 ```java
-private CommentResponse toComment(ResultSet rs, int rowNumber) throws SQLException {
-    return new CommentResponse(
-            rs.getLong("ID"),
-            rs.getString("AUTHOR"),
-            rs.getString("BODY"),
-            rs.getTimestamp("CREATED_AT").toLocalDateTime());
-}
+        // Two cursors. Each one is named, and each has its own row mapper.
+        this.getTicket = new SimpleJdbcCall(jdbcTemplate)
+                .withCatalogName(PACKAGE).withProcedureName("GET_TICKET")
+                .returningResultSet("P_TICKET", this::toTicket)
+                .returningResultSet("P_COMMENTS", this::toComment);
 ```
 
-Each cursor comes back in the `Map` as a `List`. The ticket list has exactly one row, so take the first:
+`toComment` does not exist yet, so IntelliJ marks it in red. Add it at the end of the class, after `toTicket`. It reads one comment:
 
 ```java
-@SuppressWarnings("unchecked")
-public TicketWithComments getTicket(long ticketId) {
-    Map<String, Object> out = getTicket.execute(ticketId);
-    List<TicketResponse> ticket = (List<TicketResponse>) out.get("P_TICKET");
-    List<CommentResponse> comments = (List<CommentResponse>) out.get("P_COMMENTS");
-    return new TicketWithComments(ticket.get(0), comments);
-}
+    private CommentResponse toComment(ResultSet rs, int rowNumber) throws SQLException {
+        return new CommentResponse(
+                rs.getLong("ID"),
+                rs.getString("AUTHOR"),
+                rs.getString("BODY"),
+                rs.getTimestamp("CREATED_AT").toLocalDateTime());
+    }
+```
+
+The column names are the ones in the `SELECT` of the comment cursor in `get_ticket`: `ID`, `AUTHOR`, `BODY`, `CREATED_AT`.
+
+### 7.3 The repository: read both cursors
+
+Add the method after `addComment`. Each cursor comes back in the `Map` as a `List`, under its own name. The ticket list has exactly one row, so take the first:
+
+```java
+    // One call, two cursors. Each comes back in the Map as a List, under its own name.
+    @SuppressWarnings("unchecked")
+    public TicketWithComments getTicket(long ticketId) {
+        Map<String, Object> out = getTicket.execute(ticketId);
+        List<TicketResponse> ticket = (List<TicketResponse>) out.get("P_TICKET");
+        List<CommentResponse> comments = (List<CommentResponse>) out.get("P_COMMENTS");
+        return new TicketWithComments(ticket.get(0), comments);
+    }
 ```
 
 A ticket without comments gives an empty list, not `null`. A missing ticket never reaches this line, because the package raises `-20003` first.
 
-### 7.3 The service and the controller
+Add the imports for `CommentResponse` and `TicketWithComments`. Compare the class with the checkpoint.
+
+**Check:** run `mvn -q compile`. It prints nothing.
+
+### 7.4 The service and the controller
+
+In `TicketService.java`, add this method at the end of the class, and the import for `TicketWithComments`:
 
 ```java
-public TicketWithComments get(long ticketId) {
-    return ticketRepository.getTicket(ticketId);
-}
+    public TicketWithComments get(long ticketId) {
+        return ticketRepository.getTicket(ticketId);
+    }
 ```
 
+In `TicketController.java`, add this route at the end of the class, and the import for `TicketWithComments`:
+
 ```java
-@GetMapping("/{id}")
-public TicketWithComments get(@PathVariable long id) {
-    return ticketService.get(id);
-}
+    // Calls the procedure GET_TICKET: one ticket and its comments.
+    @GetMapping("/{id}")
+    public TicketWithComments get(@PathVariable long id) {
+        return ticketService.get(id);
+    }
 ```
+
+Spring turns the record into JSON. The field names of the records become the keys: `ticket`, `comments`, `id`, `author`, and so on.
+
+**Check:** run `mvn -q compile`. It prints nothing.
 
 ## Try it
 

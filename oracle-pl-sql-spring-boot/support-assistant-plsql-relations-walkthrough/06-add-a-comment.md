@@ -12,51 +12,83 @@ The link between a comment and its ticket has to come from somewhere. Here it co
 
 ### 6.1 The records
 
-The body has the author and the text. The ticket id is not in it:
+In the package `dto`, create two files. The body has the author and the text. The ticket id is not in it. `CommentRequest.java`:
 
 ```java
-public record CommentRequest(String author, String body) { }
+package com.bsp.supportassistant.dto;
 
-public record CommentCreated(long id) { }
+// The body of POST /api/tickets/7/comments. The ticket id is in the URL, so it is not here.
+public record CommentRequest(String author, String body) {
+}
+```
+
+The answer, `CommentCreated.java`:
+
+```java
+package com.bsp.supportassistant.dto;
+
+// The answer to POST /api/tickets/7/comments: the id that the PL/SQL procedure gave back.
+public record CommentCreated(long id) {
+}
 ```
 
 ### 6.2 The repository
 
-`ADD_COMMENT` has the same shape as `CREATE_TICKET`: values in, one `OUT` id back. Build the call in the constructor:
+`ADD_COMMENT` has the same shape as `CREATE_TICKET`: values in, one `OUT` id back. Open `TicketRepository.java`. Add a fourth field below the other three:
 
 ```java
-this.addComment = new SimpleJdbcCall(jdbcTemplate)
-        .withCatalogName(PACKAGE).withProcedureName("ADD_COMMENT");
+    private final SimpleJdbcCall addComment;
 ```
 
-The ticket id goes first, because it is the first `IN` parameter of the procedure:
+Build the call at the end of the constructor, after `findTickets`:
 
 ```java
-public long addComment(long ticketId, String author, String body) {
-    Map<String, Object> out = addComment.execute(ticketId, author, body);
-    return ((Number) out.get("P_COMMENT_ID")).longValue();
-}
+        this.addComment = new SimpleJdbcCall(jdbcTemplate)
+                .withCatalogName(PACKAGE).withProcedureName("ADD_COMMENT");
 ```
 
-### 6.3 The service and the controller
-
-The service passes the request fields on:
+Add the method after `findTickets`. The ticket id goes first, because it is the first `IN` parameter of the procedure:
 
 ```java
-public long addComment(long ticketId, CommentRequest request) {
-    return ticketRepository.addComment(ticketId, request.author(), request.body());
-}
+    // The ticket id goes in with the other values. The package checks that the ticket exists.
+    public long addComment(long ticketId, String author, String body) {
+        Map<String, Object> out = addComment.execute(ticketId, author, body);
+        return ((Number) out.get("P_COMMENT_ID")).longValue();
+    }
 ```
 
-The controller reads the id from the path and the comment from the body:
+No new import is needed. Java does not check that the ticket exists, and does not check the author or the text. The package does.
+
+**Check:** run `mvn -q compile`. It prints nothing.
+
+### 6.3 The service
+
+Open `TicketService.java`. Add the method at the end of the class. It passes the request fields on:
 
 ```java
-@PostMapping("/{id}/comments")
-@ResponseStatus(HttpStatus.CREATED)
-public CommentCreated addComment(@PathVariable long id, @RequestBody CommentRequest request) {
-    return new CommentCreated(ticketService.addComment(id, request));
-}
+    public long addComment(long ticketId, CommentRequest request) {
+        return ticketRepository.addComment(ticketId, request.author(), request.body());
+    }
 ```
+
+Add `import com.bsp.supportassistant.dto.CommentRequest;` at the top.
+
+### 6.4 The controller
+
+Open `TicketController.java`. Add the route at the end of the class. It reads the id from the path and the comment from the body:
+
+```java
+    // Calls the procedure ADD_COMMENT. The comment belongs to the ticket in the URL.
+    @PostMapping("/{id}/comments")
+    @ResponseStatus(HttpStatus.CREATED)
+    public CommentCreated addComment(@PathVariable long id, @RequestBody CommentRequest request) {
+        return new CommentCreated(ticketService.addComment(id, request));
+    }
+```
+
+Add the imports for `CommentCreated` and `CommentRequest`. Compare the three classes with the checkpoint.
+
+**Check:** run `mvn -q compile`. It prints nothing.
 
 ## Try it
 

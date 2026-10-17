@@ -19,37 +19,76 @@ The programs in the package have no `COMMIT`, so Spring decides.
 
 ### 10.1 The request
 
-One body with both parts:
+In the package `dto`, create `CreateTicketWithCommentRequest.java`. One body holds both parts. The text of the comment is called `comment` here, so that it does not look like the description of the ticket:
 
 ```java
+package com.bsp.supportassistant.dto;
+
+// The body of POST /api/tickets/with-first-comment: a ticket and its first comment.
 public record CreateTicketWithCommentRequest(
-        String title, String description, String priority, String author, String comment) { }
+        String title,
+        String description,
+        String priority,
+        String author,
+        String comment) {
+}
 ```
 
 ### 10.2 The service
 
-`@Transactional` goes on the service method, where the two calls meet. The comment needs the id of the ticket, so the ticket comes first:
+Open `TicketService.java`. `@Transactional` goes on the service method, where the two calls meet. The comment needs the id of the ticket, so the ticket comes first. Add the method at the end of the class:
 
 ```java
-@Transactional
-public long createWithFirstComment(CreateTicketWithCommentRequest request) {
-    long ticketId = ticketRepository.createTicket(request.title(), request.description(), request.priority());
-    ticketRepository.addComment(ticketId, request.author(), request.comment());
-    return ticketId;
-}
+    // All or nothing: if the comment is refused, the ticket is put back too.
+    // The comment needs the id of the ticket, so the ticket must be created first.
+    @Transactional
+    public long createWithFirstComment(CreateTicketWithCommentRequest request) {
+        long ticketId = ticketRepository.createTicket(request.title(), request.description(), request.priority());
+        ticketRepository.addComment(ticketId, request.author(), request.comment());
+        return ticketId;
+    }
+```
+
+Add two imports. Take `Transactional` from Spring, not the one from `jakarta.transaction`:
+
+```java
+import com.bsp.supportassistant.dto.CreateTicketWithCommentRequest;
+import org.springframework.transaction.annotation.Transactional;
 ```
 
 If `addComment` throws, the exception leaves the method, and Spring undoes everything that this method did. The exception then goes on to the handler of step 9, so the client still gets its `400`.
 
+```mermaid
+sequenceDiagram
+    participant S as TicketService
+    participant P as DESK_TICKET_PKG
+    S->>P: CREATE_TICKET
+    P-->>S: P_TICKET_ID = 5
+    S->>P: ADD_COMMENT(5, ...)
+    P-->>S: ORA-20005
+    S->>S: ROLLBACK, the ticket is gone
+```
+
+**How to read it:** both calls run in one transaction. The second call fails, so Spring undoes the first one too.
+
+**Check:** run `mvn -q compile`. It prints nothing.
+
 ### 10.3 The controller
 
+Open `TicketController.java`. Add the route at the end of the class, and the import for `CreateTicketWithCommentRequest`:
+
 ```java
-@PostMapping("/with-first-comment")
-@ResponseStatus(HttpStatus.CREATED)
-public TicketCreated createWithFirstComment(@RequestBody CreateTicketWithCommentRequest request) {
-    return new TicketCreated(ticketService.createWithFirstComment(request));
-}
+    // Creates a ticket and its first comment, in one transaction.
+    @PostMapping("/with-first-comment")
+    @ResponseStatus(HttpStatus.CREATED)
+    public TicketCreated createWithFirstComment(@RequestBody CreateTicketWithCommentRequest request) {
+        return new TicketCreated(ticketService.createWithFirstComment(request));
+    }
 ```
+
+The answer is the same `TicketCreated` as for `POST /api/tickets`: the id of the new ticket. Compare the service and the controller with the checkpoint. This is the last change to both classes.
+
+**Check:** run `mvn -q compile`. It prints nothing.
 
 ## Try it
 
@@ -71,6 +110,8 @@ Read it back. The comment is there:
 ```bash
 curl http://localhost:8080/api/tickets/4
 ```
+
+**Check:** the answer has `"title":"Badge reader is broken"` and one comment, `"body":"Door 2 does not open"`.
 
 Now a first comment with no text. Send no `comment` field:
 

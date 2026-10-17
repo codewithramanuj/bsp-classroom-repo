@@ -29,13 +29,38 @@ erDiagram
 
 **How to read it:** the line between the boxes means "one ticket has zero or more comments". The `FK` column is the link.
 
-### 2.1 The parent table
+### 2.1 Create the project folder and the script file
 
-`DESK_TICKETS` is the same as in the first project, and has its own sequence:
+The project lives in one folder. The database scripts go in it first. In step 4, the Spring Boot files go into the same folder.
+
+1. Create a folder called `support-assistant-plsql-relations`.
+2. Inside it, create the folders `db/oracle`.
+3. Create an empty file `db/oracle/01-tables.sql`.
+
+**Check:** the path `support-assistant-plsql-relations/db/oracle/01-tables.sql` exists.
+
+Add these two comment lines at the top of the file:
+
+```sql
+-- Oracle only. Run once, as the user that your application connects as.
+-- The names start with DESK_ so they do not clash with the SUPPORT_ tables of the other projects.
+```
+
+### 2.2 The sequences
+
+A sequence is an Oracle object that hands out the next number each time you ask, like a ticket machine at a counter. Each table gets its own, so ticket ids and comment ids count separately:
 
 ```sql
 CREATE SEQUENCE DESK_TICKETS_SEQ START WITH 1 INCREMENT BY 1;
+CREATE SEQUENCE DESK_COMMENTS_SEQ START WITH 1 INCREMENT BY 1;
+```
 
+### 2.3 The parent table
+
+`DESK_TICKETS` is the same as in the first project. Add it below the sequences:
+
+```sql
+-- The parent table.
 CREATE TABLE DESK_TICKETS (
     ID           NUMBER         PRIMARY KEY,
     TITLE        VARCHAR2(100)  NOT NULL,
@@ -47,11 +72,13 @@ CREATE TABLE DESK_TICKETS (
 );
 ```
 
-### 2.2 The child table and the link
+### 2.4 The child table and the link
 
-`TICKET_ID` carries the link. `REFERENCES DESK_TICKETS (ID)` makes it a foreign key:
+`TICKET_ID` carries the link. `REFERENCES DESK_TICKETS (ID)` makes it a foreign key. Add the table below the parent table, because Oracle must know the parent before a child can refer to it:
 
 ```sql
+-- The child table. TICKET_ID is the relationship: every comment belongs to exactly one ticket.
+-- The REFERENCES clause makes Oracle refuse a comment for a ticket that does not exist.
 CREATE TABLE DESK_COMMENTS (
     ID          NUMBER         PRIMARY KEY,
     TICKET_ID   NUMBER         NOT NULL REFERENCES DESK_TICKETS (ID),
@@ -63,20 +90,51 @@ CREATE TABLE DESK_COMMENTS (
 
 `NOT NULL` means a comment must have a ticket. Without it, a comment could exist with no parent.
 
-### 2.3 The index
+### 2.5 The index
 
-Oracle does not index a foreign key by itself. Every "comments of ticket 7" query filters on `TICKET_ID`, so add the index:
+Oracle does not index a foreign key by itself. Every "comments of ticket 7" query filters on `TICKET_ID`, so add the index at the end of the file:
 
 ```sql
+-- Oracle does not index a foreign key by itself. This index makes "the comments of ticket 7" fast.
 CREATE INDEX DESK_COMMENTS_TICKET_IX ON DESK_COMMENTS (TICKET_ID);
 ```
 
-### 2.4 Run the script
+Compare your file with the checkpoint below before you run it.
 
-Type or copy the file from the checkpoint below. Run it as the user that your application will connect as. In SQL Developer, use **F5**. With SQL\*Plus:
+### 2.6 Run the script
+
+Run it as the user that your application will connect as. In SQL Developer, open the file and use **Run Script (F5)**. With SQL\*Plus, run this from the project folder:
 
 ```bash
 sqlplus YOUR_USERNAME/YOUR_PASSWORD@//ORACLE_HOST:1521/ORACLE_SERVICE @db/oracle/01-tables.sql
+```
+
+**Check:** you should see five lines of feedback:
+
+```text
+Sequence created.
+Sequence created.
+Table created.
+Table created.
+Index created.
+```
+
+Ask Oracle to list what you created:
+
+```sql
+SELECT OBJECT_NAME, OBJECT_TYPE FROM USER_OBJECTS WHERE OBJECT_NAME LIKE 'DESK%' ORDER BY OBJECT_TYPE, OBJECT_NAME;
+```
+
+**Check:** you should see five rows:
+
+```text
+OBJECT_NAME               OBJECT_TYPE
+------------------------- -----------------------
+DESK_COMMENTS_TICKET_IX   INDEX
+DESK_COMMENTS_SEQ         SEQUENCE
+DESK_TICKETS_SEQ          SEQUENCE
+DESK_COMMENTS             TABLE
+DESK_TICKETS              TABLE
 ```
 
 ## Try it
@@ -94,7 +152,9 @@ Expected:
 ORA-02291: integrity constraint (YOUR_USERNAME.SYS_C008348) violated - parent key not found
 ```
 
-The number in the constraint name is different on your database. The text after it is the same.
+The number in the constraint name is different on your database. The text after it is the same. Oracle made up the name `SYS_C...` because the script does not name the foreign key.
+
+The refused row was not saved, so there is nothing to undo.
 
 The foreign key also protects the parent. In step 3 you will try to delete a ticket that has a comment, and Oracle answers `ORA-02292`.
 

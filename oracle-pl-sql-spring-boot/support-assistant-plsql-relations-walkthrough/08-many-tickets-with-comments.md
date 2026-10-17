@@ -34,72 +34,123 @@ Ticket 1 is in two rows. The repository must turn four rows into three tickets.
 
 ### 8.2 One row: a ticket and maybe a comment
 
-A small private record holds one row. The comment is `null` for a ticket that has none:
+Open `TicketRepository.java`. Add a small private record inside the class, after `getTicket`. It holds one row of the joined cursor. The comment is `null` for a ticket that has none:
 
 ```java
-private record JoinedRow(TicketResponse ticket, CommentResponse comment) {
-}
+    // A ticket and one of its comments. The comment is null for a ticket that has none.
+    private record JoinedRow(TicketResponse ticket, CommentResponse comment) {
+    }
 ```
 
-The row mapper builds the ticket with `toTicket`, which reads the ticket columns. It builds the comment only when `COMMENT_ID` is not `NULL`:
+A record can be written inside a class. It is `private` because only this class uses it. The client never sees a `JoinedRow`.
+
+### 8.3 The row mapper for a joined row
+
+Add this row mapper at the end of the class, after `toComment`. It builds the ticket with `toTicket`, which reads the ticket columns. It builds the comment only when `COMMENT_ID` is not `NULL`:
 
 ```java
-private JoinedRow toJoinedRow(ResultSet rs, int rowNumber) throws SQLException {
-    long commentId = rs.getLong("COMMENT_ID");
-    CommentResponse comment = null;
-    if (!rs.wasNull()) {
-        comment = new CommentResponse(
-                commentId,
-                rs.getString("AUTHOR"),
-                rs.getString("BODY"),
-                rs.getTimestamp("COMMENT_AT").toLocalDateTime());
+    // The ticket columns are read as before. The comment columns are NULL when the ticket has no comment:
+    // getLong gives 0 for a NULL, so ask wasNull() straight after it.
+    private JoinedRow toJoinedRow(ResultSet rs, int rowNumber) throws SQLException {
+        long commentId = rs.getLong("COMMENT_ID");
+        CommentResponse comment = null;
+        if (!rs.wasNull()) {
+            comment = new CommentResponse(
+                    commentId,
+                    rs.getString("AUTHOR"),
+                    rs.getString("BODY"),
+                    rs.getTimestamp("COMMENT_AT").toLocalDateTime());
+        }
+        return new JoinedRow(toTicket(rs, rowNumber), comment);
     }
-    return new JoinedRow(toTicket(rs, rowNumber), comment);
-}
 ```
 
 `getLong` returns `0` for a `NULL`, which looks like a real value. `wasNull()` asks whether the last column read was `NULL`. Call it straight after the column.
 
-### 8.3 Group the rows
+The comment columns have the names that the cursor gave them with `AS`: `COMMENT_ID` and `COMMENT_AT`. The ticket columns keep their own names, so `toTicket` can read this row too.
 
-Register the cursor, then read it. A `LinkedHashMap` keeps the tickets in the order they arrive. `computeIfAbsent` creates the ticket's entry the first time its id is seen:
+### 8.4 Register the call
+
+Add a sixth field, the last one:
 
 ```java
-this.findTicketsWithComments = new SimpleJdbcCall(jdbcTemplate)
-        .withCatalogName(PACKAGE).withProcedureName("FIND_TICKETS_WITH_COMMENTS")
-        .returningResultSet("P_ROWS", this::toJoinedRow);
+    private final SimpleJdbcCall findTicketsWithComments;
 ```
 
+Build the call at the end of the constructor. The cursor is `P_ROWS`, and each row goes through `toJoinedRow`:
+
 ```java
-Map<Long, TicketWithComments> tickets = new LinkedHashMap<>();
-for (JoinedRow row : rows) {
-    TicketWithComments entry = tickets.computeIfAbsent(row.ticket().id(),
-            id -> new TicketWithComments(row.ticket(), new ArrayList<>()));
-    if (row.comment() != null) {
-        entry.comments().add(row.comment());
+        // One cursor of joined rows. toJoinedRow builds a ticket and, when there is one, a comment.
+        this.findTicketsWithComments = new SimpleJdbcCall(jdbcTemplate)
+                .withCatalogName(PACKAGE).withProcedureName("FIND_TICKETS_WITH_COMMENTS")
+                .returningResultSet("P_ROWS", this::toJoinedRow);
+```
+
+### 8.5 Group the rows
+
+Add the method after the `JoinedRow` record. It makes one call, gets the list of rows, and groups them by ticket. A `LinkedHashMap` keeps the tickets in the order they arrive. `computeIfAbsent` creates the ticket's entry the first time its id is seen:
+
+```java
+    // One call, one cursor, many rows. The rows come ordered by ticket, and a ticket
+    // with 3 comments has 3 rows. Group them back into one object for each ticket.
+    @SuppressWarnings("unchecked")
+    public List<TicketWithComments> findTicketsWithComments(String status) {
+        Map<String, Object> out = findTicketsWithComments.execute(status);
+        List<JoinedRow> rows = (List<JoinedRow>) out.get("P_ROWS");
+
+        Map<Long, TicketWithComments> tickets = new LinkedHashMap<>();
+        for (JoinedRow row : rows) {
+            TicketWithComments entry = tickets.computeIfAbsent(row.ticket().id(),
+                    id -> new TicketWithComments(row.ticket(), new ArrayList<>()));
+            if (row.comment() != null) {
+                entry.comments().add(row.comment());
+            }
+        }
+        return new ArrayList<>(tickets.values());
     }
-}
-return new ArrayList<>(tickets.values());
 ```
 
-For each row: find or create the ticket's entry, then add the comment to it if there is one. See the checkpoint for the whole method.
+For each row: find or create the ticket's entry, then add the comment to it if there is one. With the four rows of 8.1:
 
-### 8.4 The service and the controller
+| Row | Ticket id | What happens |
+|---|---|---|
+| 1 | 1 | New entry for ticket 1. Add comment 1 |
+| 2 | 1 | Entry for ticket 1 found. Add comment 2 |
+| 3 | 2 | New entry for ticket 2. No comment to add |
+| 4 | 3 | New entry for ticket 3. Add comment 3 |
+
+The entry starts with `new ArrayList<>()`, so a ticket without comments ends with an empty list, not `null`.
+
+Add the imports `java.util.ArrayList` and `java.util.LinkedHashMap`. Compare the class with the checkpoint. This is the last change to `TicketRepository`.
+
+**Check:** run `mvn -q compile`. It prints nothing.
+
+### 8.6 The service and the controller
+
+In `TicketService.java`, add this method at the end of the class:
 
 ```java
-public List<TicketWithComments> findWithComments(String status) {
-    return ticketRepository.findTicketsWithComments(status);
-}
+    public List<TicketWithComments> findWithComments(String status) {
+        return ticketRepository.findTicketsWithComments(status);
+    }
 ```
 
+In `TicketController.java`, add this route at the end of the class:
+
 ```java
-@GetMapping("/with-comments")
-public List<TicketWithComments> findWithComments(@RequestParam(required = false) String status) {
-    return ticketService.findWithComments(status);
-}
+    // Calls the procedure FIND_TICKETS_WITH_COMMENTS: many tickets, each with its comments.
+    // The fixed path "with-comments" wins over "/{id}", so this does not clash with the route above.
+    @GetMapping("/with-comments")
+    public List<TicketWithComments> findWithComments(@RequestParam(required = false) String status) {
+        return ticketService.findWithComments(status);
+    }
 ```
 
 The controller now has `GET /{id}` and `GET /with-comments`. Spring chooses the fixed path `with-comments` over the pattern `{id}`, so the two do not clash.
+
+No new import is needed in either class.
+
+**Check:** run `mvn -q compile`. It prints nothing.
 
 ## Try it
 
@@ -420,7 +471,7 @@ public class TicketController {
 |---|---|---|
 | `NullPointerException: ... getTimestamp(String) is null` | The comment is built for a ticket that has no comment. `wasNull()` was not asked | Check `rs.wasNull()` right after `getLong("COMMENT_ID")` |
 | A ticket without comments is missing from the answer | The package used `JOIN` and not `LEFT JOIN` | Use `LEFT JOIN` in `find_tickets_with_comments` |
-| The same ticket appears three times | The rows were turned into tickets one by one, with no grouping | Group by ticket id, as in 8.3 |
+| The same ticket appears three times | The rows were turned into tickets one by one, with no grouping | Group by ticket id, as in 8.5 |
 | The page is slow with many tickets | A loop calls `getTicket` for each ticket: N+1 | Use `findTicketsWithComments` |
 
 Next: **[Error handling](09-error-handling.md)**.
