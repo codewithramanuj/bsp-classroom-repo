@@ -1,7 +1,6 @@
 spring:
   application:
     name: support-assistant-plsql
-  datasource:
-    url: jdbc:oracle:thin:@//10.145.1.234:1522/test
-    username: test
-    password: test123
+
+  profiles:
+    active: ${PROFILE:qa}
