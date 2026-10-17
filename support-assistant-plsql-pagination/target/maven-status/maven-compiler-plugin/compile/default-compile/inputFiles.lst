@@ -1,0 +1,13 @@
+/Users/ramanuj/Documents/training-projects/sail-spring-boot-react/oracle-pl-sql-spring-boot/support-assistant-plsql-pagination/src/main/java/com/bsp/supportassistant/SupportAssistantApplication.java
+/Users/ramanuj/Documents/training-projects/sail-spring-boot-react/oracle-pl-sql-spring-boot/support-assistant-plsql-pagination/src/main/java/com/bsp/supportassistant/api/TicketController.java
+/Users/ramanuj/Documents/training-projects/sail-spring-boot-react/oracle-pl-sql-spring-boot/support-assistant-plsql-pagination/src/main/java/com/bsp/supportassistant/dto/BulkStatusRequest.java
+/Users/ramanuj/Documents/training-projects/sail-spring-boot-react/oracle-pl-sql-spring-boot/support-assistant-plsql-pagination/src/main/java/com/bsp/supportassistant/dto/CreateTicketRequest.java
+/Users/ramanuj/Documents/training-projects/sail-spring-boot-react/oracle-pl-sql-spring-boot/support-assistant-plsql-pagination/src/main/java/com/bsp/supportassistant/dto/PageResponse.java
+/Users/ramanuj/Documents/training-projects/sail-spring-boot-react/oracle-pl-sql-spring-boot/support-assistant-plsql-pagination/src/main/java/com/bsp/supportassistant/dto/StatusRequest.java
+/Users/ramanuj/Documents/training-projects/sail-spring-boot-react/oracle-pl-sql-spring-boot/support-assistant-plsql-pagination/src/main/java/com/bsp/supportassistant/dto/TicketCreated.java
+/Users/ramanuj/Documents/training-projects/sail-spring-boot-react/oracle-pl-sql-spring-boot/support-assistant-plsql-pagination/src/main/java/com/bsp/supportassistant/dto/TicketResponse.java
+/Users/ramanuj/Documents/training-projects/sail-spring-boot-react/oracle-pl-sql-spring-boot/support-assistant-plsql-pagination/src/main/java/com/bsp/supportassistant/exception/ApiError.java
+/Users/ramanuj/Documents/training-projects/sail-spring-boot-react/oracle-pl-sql-spring-boot/support-assistant-plsql-pagination/src/main/java/com/bsp/supportassistant/exception/GlobalExceptionHandler.java
+/Users/ramanuj/Documents/training-projects/sail-spring-boot-react/oracle-pl-sql-spring-boot/support-assistant-plsql-pagination/src/main/java/com/bsp/supportassistant/exception/InvalidRequestException.java
+/Users/ramanuj/Documents/training-projects/sail-spring-boot-react/oracle-pl-sql-spring-boot/support-assistant-plsql-pagination/src/main/java/com/bsp/supportassistant/repository/TicketRepository.java
+/Users/ramanuj/Documents/training-projects/sail-spring-boot-react/oracle-pl-sql-spring-boot/support-assistant-plsql-pagination/src/main/java/com/bsp/supportassistant/service/TicketService.java
