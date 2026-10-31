@@ -12,23 +12,13 @@ You will build a Spring Boot application that does basic **CRUD** (Create, Read,
 
 ## What You Will Build
 
-```text
- Swagger / curl
-       |
-       v
- EquipmentController   (REST endpoints)
-       |
-       v
- EquipmentService      (business logic)
-       |
-       v
- EquipmentRepository   (SimpleJdbcCall)
-       |
-       v
- EQUIPMENT_PKG         (PL/SQL package in Oracle)
-       |
-       v
- EQUIPMENT table
+```mermaid
+flowchart LR
+    C["Swagger / curl"] -->|HTTP JSON| CT["EquipmentController"]
+    CT --> SV["EquipmentService"]
+    SV --> RP["EquipmentRepository"]
+    RP -->|SimpleJdbcCall| PK["EQUIPMENT_PKG"]
+    PK --> T[("EQUIPMENT table")]
 ```
 
 | Method | URL | What it does | PL/SQL procedure |
@@ -39,35 +29,49 @@ You will build a Spring Boot application that does basic **CRUD** (Create, Read,
 | PUT | `/api/v1/equipment/{id}` | Update equipment | `UPDATE_EQUIPMENT` |
 | DELETE | `/api/v1/equipment/{id}` | Delete equipment | `DELETE_EQUIPMENT` |
 
+### Order of Work
+
+Build from the bottom up. Each layer only calls the one below it, so finish and check a layer before moving up.
+
+```mermaid
+flowchart LR
+    S1["1. Open project"] --> S2["2. Database"]
+    S2 --> S3["3. DTOs (read)"]
+    S3 --> S4["4. Repository"]
+    S4 --> S5["5. Service"]
+    S5 --> S6["6. Controller"]
+    S6 --> S7["7. Run and test"]
+```
+
 ---
 
 ## Step 1: Open the Starter Project
 
-Open the [`equipment-register`](equipment-register/README.md) folder in your IDE. It already has:
+Open the `equipment-register` folder (the folder that contains this file) in your IDE. See [README.md](README.md) for how to run it. The project already has:
 
-- `pom.xml` with the dependencies: Spring Web MVC, Spring JDBC, the Oracle driver (`ojdbc17`) and Swagger UI (`springdoc-openapi-starter-webmvc-ui`)
-- `application.yaml` with the Oracle connection (check the URL, username and password)
+- [`pom.xml`](pom.xml) with the dependencies: Spring Web MVC, Spring JDBC, the Oracle driver (`ojdbc17`) and Swagger UI (`springdoc-openapi-starter-webmvc-ui`)
+- [`application.yaml`](src/main/resources/application.yaml) with the Oracle connection (check the URL, username and password)
 - every package, class and method signature, with `TODO`s where you write code
 
-```text
-com.bsp.equipment
- ├── EquipmentRegisterApplication.java    main class (complete)
- ├── api/EquipmentController.java         TODO
- ├── dto/EquipmentRequest.java            complete
- ├── dto/EquipmentResponse.java           complete
- ├── repository/EquipmentRepository.java  TODO
- └── service/EquipmentService.java        TODO
+| File | State |
+|---|---|
+| [`EquipmentRegisterApplication.java`](src/main/java/com/bsp/equipment/EquipmentRegisterApplication.java) | Complete (main class) |
+| [`dto/EquipmentRequest.java`](src/main/java/com/bsp/equipment/dto/EquipmentRequest.java) | Complete |
+| [`dto/EquipmentResponse.java`](src/main/java/com/bsp/equipment/dto/EquipmentResponse.java) | Complete |
+| [`db/equipment.sql`](src/main/resources/db/equipment.sql) | TODO (Step 2) |
+| [`repository/EquipmentRepository.java`](src/main/java/com/bsp/equipment/repository/EquipmentRepository.java) | TODO (Step 4) |
+| [`service/EquipmentService.java`](src/main/java/com/bsp/equipment/service/EquipmentService.java) | TODO (Step 5) |
+| [`api/EquipmentController.java`](src/main/java/com/bsp/equipment/api/EquipmentController.java) | TODO (Step 6) |
 
-src/main/resources/db/equipment.sql       TODO
-```
+All Java files are under `src/main/java/com/bsp/equipment/`.
 
-To list every task, use your IDE's TODO view, or run `grep -rn TODO src`.
+To list every task, use your IDE's TODO view, or run `grep -rn TODO src` from the `equipment-register` folder.
 
 ---
 
 ## Step 2: Database (`equipment.sql`)
 
-Complete `src/main/resources/db/equipment.sql`, then run the whole script in SQL Developer (F5).
+Complete [`src/main/resources/db/equipment.sql`](src/main/resources/db/equipment.sql), then run the whole script in SQL Developer (F5).
 
 > **Sharing one schema?** If everyone uses the same `test` user, add your initials to the table and package names (for example `EQUIPMENT_RK` and `EQUIPMENT_PKG_RK`) so you don't overwrite each other.
 
@@ -79,6 +83,17 @@ Complete `src/main/resources/db/equipment.sql`, then run the whole script in SQL
 | NAME | VARCHAR2(100) | Not null |
 | DEPARTMENT | VARCHAR2(50) | Not null |
 | STATUS | VARCHAR2(20) | Default `'WORKING'`; only `'WORKING'` or `'UNDER_REPAIR'` (use a `CHECK` constraint) |
+
+The two allowed status values, and how equipment moves between them:
+
+```mermaid
+stateDiagram-v2
+    [*] --> WORKING: added (default)
+    WORKING --> UNDER_REPAIR: breakdown
+    UNDER_REPAIR --> WORKING: repaired
+    WORKING --> [*]: deleted
+    UNDER_REPAIR --> [*]: deleted
+```
 
 Insert 2 or 3 sample rows, for example `EOT Crane 50T` in `Steel Melting Shop`, then `COMMIT`.
 
@@ -122,14 +137,32 @@ There's nothing to write here. Read the two records so you know the JSON shapes:
 
 | Record | Fields | Used for |
 |---|---|---|
-| `EquipmentRequest` | `name`, `department`, `status` | Request body of POST and PUT |
-| `EquipmentResponse` | `id`, `name`, `department`, `status` | Everything the API returns |
+| [`EquipmentRequest`](src/main/java/com/bsp/equipment/dto/EquipmentRequest.java) | `name`, `department`, `status` | Request body of POST and PUT |
+| [`EquipmentResponse`](src/main/java/com/bsp/equipment/dto/EquipmentResponse.java) | `id`, `name`, `department`, `status` | Everything the API returns |
 
 ---
 
 ## Step 4: Repository (`EquipmentRepository`)
 
-This is the main part of the exercise: calling the PL/SQL package from Java.
+File: [`src/main/java/com/bsp/equipment/repository/EquipmentRepository.java`](src/main/java/com/bsp/equipment/repository/EquipmentRepository.java)
+
+This is the main part of the exercise: calling the PL/SQL package from Java. This is how one request, `GET /api/v1/equipment/{id}`, travels through all the layers:
+
+```mermaid
+sequenceDiagram
+    participant CT as Controller
+    participant SV as Service
+    participant RP as Repository
+    participant PK as EQUIPMENT_PKG
+    CT->>SV: getEquipment(id)
+    SV->>RP: getEquipment(id)
+    RP->>PK: execute(id) via SimpleJdbcCall
+    PK-->>RP: P_RESULT cursor
+    Note over RP: toEquipment maps each row
+    RP-->>SV: EquipmentResponse or null
+    SV-->>CT: EquipmentResponse or null
+    Note over CT: null gives 404, otherwise 200
+```
 
 **Setup (constructor):** create one `SimpleJdbcCall` per procedure from the injected `JdbcTemplate`, using `withCatalogName(PACKAGE)` and `withProcedureName("...")`. Store each one in a field.
 
@@ -158,6 +191,8 @@ This is the main part of the exercise: calling the PL/SQL package from Java.
 
 ## Step 5: Service (`EquipmentService`)
 
+File: [`src/main/java/com/bsp/equipment/service/EquipmentService.java`](src/main/java/com/bsp/equipment/service/EquipmentService.java)
+
 The service sits between the controller and the repository. Each method calls the matching repository method.
 
 | Method | What it must do |
@@ -171,6 +206,8 @@ The service sits between the controller and the repository. Each method calls th
 ---
 
 ## Step 6: Controller (`EquipmentController`)
+
+File: [`src/main/java/com/bsp/equipment/api/EquipmentController.java`](src/main/java/com/bsp/equipment/api/EquipmentController.java)
 
 The mappings and signatures are already in place. Each method calls the matching service method.
 
@@ -186,7 +223,7 @@ The mappings and signatures are already in place. Each method calls the matching
 
 ## Step 7: Run and Test
 
-Start the application (run `EquipmentRegisterApplication`), then open Swagger UI:
+Start the application (run [`EquipmentRegisterApplication`](src/main/java/com/bsp/equipment/EquipmentRegisterApplication.java), or `mvn spring-boot:run` from the `equipment-register` folder), then open Swagger UI:
 
 **<http://localhost:8080/swagger-ui.html>**
 

@@ -1,6 +1,6 @@
 # Equipment Register: Starter Project
 
-This is the starter project for the [Plant Equipment Register case study](../practice-case-study.md). The project setup (Step 1 of the case study) is already done for you. Start from **Step 2**.
+This is the starter project for the [Plant Equipment Register case study](case-study.md). The project setup (Step 1 of the case study) is already done for you. Start from **Step 2**.
 
 ## What you implement
 
