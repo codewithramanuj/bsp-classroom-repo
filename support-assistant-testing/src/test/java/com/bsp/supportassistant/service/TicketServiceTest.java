@@ -15,17 +15,41 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
-// Test 2: JUnit with Mockito. The service is real. The repository is a mock,
-// so the test needs no Spring and no database.
+
 @ExtendWith(MockitoExtension.class)
 class TicketServiceTest {
 
-    
+    @Mock
+    private TicketRepository ticketRepository;
+
+    @InjectMocks
+    private TicketService ticketService;
+
+    @Test
+    void createWithoutATitleSavesNothing() {
+        assertThrows(IllegalArgumentException.class, ()->ticketService.create(new CreateTicketRequest("","HIGH")));
+
+    }
+
+    @Test
+    void createSavesANewTicketAsOpen() {
+        // Arrange: tell the mock what to answer when save is called.
+        when(ticketRepository.save(any(Ticket.class)))
+                .thenReturn(new Ticket(1L, "Printer is jammed", "HIGH", "OPEN"));
+
+
+        // Act
+        TicketResponse response = ticketService.create(new CreateTicketRequest("Printer is jammed", "HIGH"));
+
+        // Assert: the answer, and what the service gave to save.
+        assertThat(response.id()).isEqualTo(1L);
+        assertThat(response.status()).isEqualTo("OPEN");
+
+
+    }
 }

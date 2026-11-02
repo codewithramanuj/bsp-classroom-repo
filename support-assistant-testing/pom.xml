@@ -27,6 +27,14 @@
             <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
 
+        <!-- Source: https://mvnrepository.com/artifact/org.springdoc/springdoc-openapi-starter-webmvc-ui -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>3.1.1</version>
+            <scope>compile</scope>
+        </dependency>
+
         <!-- Test tools: JUnit 5, Mockito, AssertJ, MockMvc -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
