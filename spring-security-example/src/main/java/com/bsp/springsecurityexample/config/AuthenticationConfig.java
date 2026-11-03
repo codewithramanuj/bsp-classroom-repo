@@ -19,8 +19,8 @@ public class AuthenticationConfig {
         UserDetails admin = User.withUsername("admin")
                                 .password(passwordEncoder.encode("admin123"))
                                 .roles("ADMIN").build();
-        UserDetails karan = User.withUsername(passwordEncoder.encode("karan"))
-                .password("pass123")
+        UserDetails karan = User.withUsername("karan")
+                .password(passwordEncoder.encode("pass123"))
                 .roles("USER").build();
 
         return new InMemoryUserDetailsManager(admin,karan);
