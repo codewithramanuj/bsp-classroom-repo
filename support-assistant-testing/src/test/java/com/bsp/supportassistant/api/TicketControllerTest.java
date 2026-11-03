@@ -4,6 +4,8 @@ import com.bsp.supportassistant.dto.TicketResponse;
 import com.bsp.supportassistant.exception.TicketNotFoundException;
 import com.bsp.supportassistant.service.TicketService;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+import org.mockito.internal.verification.Times;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
@@ -28,5 +30,22 @@ class TicketControllerTest {
     @MockitoBean
     private TicketService ticketService;
 
-    
+    @Test
+    void postCreatesATicketAndAnswers201() throws Exception {
+        when(ticketService.create(any()))
+                .thenReturn(new TicketResponse(1L, "Printer is jammed", "HIGH", "OPEN"));
+
+        mockMvc.perform(post("/api/tickets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title":"Printer is jammed","priority":"HIGH"}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.status").value("OPEN"));
+        Mockito.verify(ticketService, Mockito.times(1)).create(any());
+    }
+
+
+
 }
