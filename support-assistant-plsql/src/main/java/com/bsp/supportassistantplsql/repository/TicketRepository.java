@@ -16,7 +16,7 @@ public class TicketRepository {
 
     private static final String PACKAGE = "SUPPORT_TICKET_PKG";
 
-    private final SimpleJdbcCall openCount, createTicket, findTickets;
+    private final SimpleJdbcCall openCount, createTicket, changeStatus, findTickets;
 
 
     public TicketRepository(JdbcTemplate jdbcTemplate) {
@@ -24,6 +24,8 @@ public class TicketRepository {
                 .withCatalogName(PACKAGE).withFunctionName("OPEN_COUNT");
         this.createTicket = new SimpleJdbcCall(jdbcTemplate)
                 .withCatalogName(PACKAGE).withProcedureName("CREATE_TICKET");
+        this.changeStatus = new SimpleJdbcCall(jdbcTemplate)
+                .withCatalogName(PACKAGE).withProcedureName("CHANGE_STATUS");
         this.findTickets = new SimpleJdbcCall(jdbcTemplate)
                 .withCatalogName(PACKAGE).withProcedureName("FIND_TICKETS")
                 .returningResultSet("P_TICKETS", this::toTicket);
@@ -40,6 +42,12 @@ public class TicketRepository {
         return ((Number) out.get("P_TICKET_ID")).longValue();
     }
 
+    // A procedure with no output: the package raises an error when the change is not allowed.
+    public void changeStatus(long ticketId, String newStatus) {
+        changeStatus.execute(ticketId, newStatus);
+    }
+
+    @SuppressWarnings("unchecked")
     public List<TicketResponse> findTickets(String status){
         Map<String, Object> out= findTickets.execute(status);
         return (List<TicketResponse>) out.get("P_TICKETS");

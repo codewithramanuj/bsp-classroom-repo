@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: support-assistant-jpa-h2
+
+  # An in-memory H2 database. It is created when the application starts and is gone when it stops.
+  datasource:
+    url: jdbc:h2:mem:supportdb;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+
+  jpa:
+    # The tables come from schema.sql, not from the entities.
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+
+  # Runs schema.sql, then data.sql, at every start.
+  sql:
+    init:
+      mode: always
+
+server:
+  port: 8080

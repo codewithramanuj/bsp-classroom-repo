@@ -4,5 +4,4 @@ spring:
     username: test
     password: test123
 
-server:
-  port: 8000
+
