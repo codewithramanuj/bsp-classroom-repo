@@ -58,6 +58,10 @@ public class TicketService {
         ticketRepo.changeStatus(ticketId, newStatus == null ? null : newStatus.toUpperCase());
     }
 
+    public void deleteTicket(long ticketId){
+        ticketRepo.deleteTicket(ticketId);
+    }
+
     // All or nothing: if one ticket cannot change, the tickets before it are put back.
     @Transactional
     public void changeStatus(List<Long> ticketIds, String newStatus){

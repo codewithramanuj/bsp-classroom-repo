@@ -54,6 +54,22 @@ class TicketPackageTests {
     }
 
     @Test
+    void deleteRemovesTheTicketAndItsLog() {
+        long id = ticketRepository.createTicket("Old request", null, "LOW");
+
+        ticketRepository.deleteTicket(id);
+
+        assertThat(ticketRepository.findTickets(null)).extracting(TicketResponse::id).doesNotContain(id);
+    }
+
+    @Test
+    void deletingAMissingTicketIsRefused() {
+        assertThatThrownBy(() -> ticketRepository.deleteTicket(-1))
+                .isInstanceOf(UncategorizedSQLException.class)
+                .hasMessageContaining("ORA-20003");
+    }
+
+    @Test
     void aTicketCannotSkipAStep() {
         long id = ticketRepository.createTicket("Reset my password", null, "LOW");
 

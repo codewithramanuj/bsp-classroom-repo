@@ -24,6 +24,9 @@ CREATE OR REPLACE PACKAGE SUPPORT_TICKET_PKG AS
         p_ticket_id   IN  NUMBER,
         p_new_status  IN  VARCHAR2);
 
+    -- Procedure: deletes a ticket and its log lines.
+    PROCEDURE delete_ticket (p_ticket_id IN NUMBER);
+
     -- Procedure with a result set: the tickets with this status, or all tickets when p_status is NULL.
     PROCEDURE find_tickets (
         p_status      IN  VARCHAR2,
@@ -102,6 +105,21 @@ CREATE OR REPLACE PACKAGE BODY SUPPORT_TICKET_PKG AS
         UPDATE SUPPORT_TICKETS SET STATUS = p_new_status WHERE ID = p_ticket_id;
         INSERT INTO SUPPORT_TICKET_LOG (TICKET_ID, ACTION) VALUES (p_ticket_id, 'STATUS ' || p_new_status);
     END change_status;
+
+    PROCEDURE delete_ticket (p_ticket_id IN NUMBER) IS
+        v_id SUPPORT_TICKETS.ID%TYPE;
+    BEGIN
+        BEGIN
+            SELECT ID INTO v_id FROM SUPPORT_TICKETS WHERE ID = p_ticket_id FOR UPDATE;
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                RAISE_APPLICATION_ERROR(-20003, 'Ticket ' || p_ticket_id || ' does not exist');
+        END;
+
+        -- The log lines point to the ticket, so they go first.
+        DELETE FROM SUPPORT_TICKET_LOG WHERE TICKET_ID = p_ticket_id;
+        DELETE FROM SUPPORT_TICKETS WHERE ID = p_ticket_id;
+    END delete_ticket;
 
     PROCEDURE find_tickets (
         p_status      IN  VARCHAR2,

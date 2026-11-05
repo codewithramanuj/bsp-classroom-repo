@@ -16,7 +16,7 @@ public class TicketRepository {
 
     private static final String PACKAGE = "SUPPORT_TICKET_PKG";
 
-    private final SimpleJdbcCall openCount, createTicket, changeStatus, findTickets;
+    private final SimpleJdbcCall openCount, createTicket, changeStatus, deleteTicket, findTickets;
 
 
     public TicketRepository(JdbcTemplate jdbcTemplate) {
@@ -26,6 +26,8 @@ public class TicketRepository {
                 .withCatalogName(PACKAGE).withProcedureName("CREATE_TICKET");
         this.changeStatus = new SimpleJdbcCall(jdbcTemplate)
                 .withCatalogName(PACKAGE).withProcedureName("CHANGE_STATUS");
+        this.deleteTicket = new SimpleJdbcCall(jdbcTemplate)
+                .withCatalogName(PACKAGE).withProcedureName("DELETE_TICKET");
         this.findTickets = new SimpleJdbcCall(jdbcTemplate)
                 .withCatalogName(PACKAGE).withProcedureName("FIND_TICKETS")
                 .returningResultSet("P_TICKETS", this::toTicket);
@@ -45,6 +47,10 @@ public class TicketRepository {
     // A procedure with no output: the package raises an error when the change is not allowed.
     public void changeStatus(long ticketId, String newStatus) {
         changeStatus.execute(ticketId, newStatus);
+    }
+
+    public void deleteTicket(long ticketId) {
+        deleteTicket.execute(ticketId);
     }
 
     @SuppressWarnings("unchecked")

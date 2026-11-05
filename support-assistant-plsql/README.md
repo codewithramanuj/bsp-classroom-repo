@@ -16,11 +16,10 @@ The build guide is the [support-assistant-plsql walkthrough](../oracle-pl-sql-sp
 
 ## Before you build or run
 
-1. Run the scripts in [db/oracle](db/oracle/), in order: `01-tables.sql`, then `02-package.sql`. `99-drop.sql` removes everything so you can start again.
+1. Run the scripts in [db/oracle](db/oracle/), in order: `01-tables.sql`, then `02-package.sql`. `99-drop.sql` removes everything so you can start again. If you created the package before `DELETE_TICKET` was added, run `02-package.sql` again. It uses `CREATE OR REPLACE`, so your tickets stay.
 2. Choose the settings file with the `PROFILE` environment variable: `dev` (port 8100) or `qa` (port 8000, the default). The database connection is in `application-dev.yaml` and `application-qa.yaml`.
 
 > **Note:** the package must be created before the first call. If it is missing, the call fails with `PLS-00201`.
-
 ## Build and run
 
 ```bash
@@ -40,6 +39,7 @@ The base path is `/api/v1/tickets`. Swagger UI is at `/swagger-ui.html`.
 | `GET /` | All tickets. Optional `status` and `priority` filters | `FIND_TICKETS` | `200`, a list of tickets |
 | `POST /` | Creates a ticket. It starts as `OPEN` | `CREATE_TICKET` | `201`, `{ "id": 7 }` |
 | `PATCH /{id}/status` | Moves a ticket one step forward | `CHANGE_STATUS` | `204`, no body |
+| `DELETE /{id}` | Deletes a ticket and its log lines | `DELETE_TICKET` | `204`, no body |
 | `POST /bulk-status` | Moves several tickets. All change, or none | `CHANGE_STATUS` for each id | `204`, no body |
 
 Values: `status` is `OPEN`, `IN_PROGRESS`, `RESOLVED` or `CLOSED`. `priority` is `HIGH`, `MEDIUM` or `LOW`. A status in lower case is accepted for `status` filters and status changes.
@@ -75,13 +75,13 @@ Every error has the same body:
 | Status | When | Oracle error |
 |---|---|---|
 | `400` | Title missing, priority not `HIGH`, `MEDIUM` or `LOW`, empty `ticketIds`, a missing parameter, or a body that is not valid JSON | `-20001`, `-20002` |
-| `404` | The ticket does not exist | `-20003` |
+| `404` | The ticket does not exist (for `PATCH` and `DELETE`) | `-20003` |
 | `409` | The status change is not allowed (a step skipped, or the ticket is `CLOSED`) | `-20004` |
 | `500` | Any other database error | |
 
 ### Calling it from React
 
-A browser blocks a page on one address from calling an API on another. `CorsConfig` allows the React app on `http://localhost:5173` (the Vite default) to call `/api/**` with `GET`, `POST` and `PATCH`. If your React app runs on another port, change the address in `config/CorsConfig.java`.
+A browser blocks a page on one address from calling an API on another. `CorsConfig` allows the React app on `http://localhost:5173` (the Vite default) to call `/api/**` with `GET`, `POST`, `PATCH` and `DELETE`. If your React app runs on another port, change the address in `config/CorsConfig.java`.
 
 ## Layout
 

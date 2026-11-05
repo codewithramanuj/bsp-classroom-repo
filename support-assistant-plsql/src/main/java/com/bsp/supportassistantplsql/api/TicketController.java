@@ -48,6 +48,13 @@ public class TicketController {
         ticketService.changeStatus(id, request.status());
     }
 
+    // Calls the procedure DELETE_TICKET.
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteTicket(@PathVariable long id){
+        ticketService.deleteTicket(id);
+    }
+
     // Calls CHANGE_STATUS for each id, in one transaction.
     @PostMapping("/bulk-status")
     @ResponseStatus(HttpStatus.NO_CONTENT)
