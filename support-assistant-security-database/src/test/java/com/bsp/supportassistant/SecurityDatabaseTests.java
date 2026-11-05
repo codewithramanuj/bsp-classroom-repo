@@ -9,8 +9,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -82,5 +84,24 @@ class SecurityDatabaseTests {
         mockMvc.perform(patch("/api/tickets/1/status").header("Authorization", "Bearer " + karan)
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isOk());
+    }
+
+    // The browser sends this question before a PATCH with a token. It carries no token itself, so it must not be 401.
+    @Test
+    void theReactAppMayAskBeforeSendingAPatch() throws Exception {
+        mockMvc.perform(options("/api/tickets/1/status")
+                        .header("Origin", "http://localhost:5173")
+                        .header("Access-Control-Request-Method", "PATCH")
+                        .header("Access-Control-Request-Headers", "authorization,content-type"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"));
+    }
+
+    @Test
+    void anotherWebsiteIsRefused() throws Exception {
+        mockMvc.perform(options("/api/tickets/1/status")
+                        .header("Origin", "http://evil.example")
+                        .header("Access-Control-Request-Method", "PATCH"))
+                .andExpect(status().isForbidden());
     }
 }

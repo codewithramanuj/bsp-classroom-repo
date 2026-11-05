@@ -6,6 +6,7 @@ import com.bsp.supportassistant.security.JwtFilter;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -23,6 +24,9 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, JwtFilter jwtFilter) throws Exception {
         http
+                // Use the rules in CorsConfig. The browser asks "may I call this?" (an OPTIONS request) before it sends
+                // the token, so this must run before the login check. Without it that question gets 401.
+                .cors(Customizer.withDefaults())
                 // Read from the top. The first rule that matches the request is the one that applies.
                 .authorizeHttpRequests(rules -> rules
                         .requestMatchers("/api/public/**").permitAll()

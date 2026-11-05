@@ -99,7 +99,7 @@ mvn clean verify
 java -jar target/support-assistant-security-database-0.0.1-SNAPSHOT.jar
 ```
 
-`mvn clean verify` runs twelve tests. Six need no database: two use a Mockito mock and four test the token code alone. Six call Oracle and need the two scripts. You should see `Tests run: 12, Failures: 0, Errors: 0`.
+`mvn clean verify` runs fourteen tests. Six need no database: two use a Mockito mock and four test the token code alone. Eight call Oracle and need the two scripts. You should see `Tests run: 14, Failures: 0, Errors: 0`.
 
 Log in, and keep the token:
 
@@ -266,15 +266,51 @@ If the token is good, the filter loads the user from the table and tells Spring 
 
 There is also an `AuthenticationManager` bean, which the login URL uses.
 
+### 8. Letting the React app call the API
+
+A browser blocks a page on one address from calling an API on another. The React app runs on `http://localhost:5173` (the Vite default) and this API on `http://localhost:8080`, so the API must allow it. [CorsConfig](src/main/java/com/bsp/supportassistant/config/CorsConfig.java) does that for `/api/**`:
+
+```java
+registry.addMapping("/api/**")
+        .allowedOrigins("http://localhost:5173", "http://127.0.0.1:5173")
+        .allowedMethods("GET", "POST", "PATCH", "DELETE", "OPTIONS")
+        .allowedHeaders("Authorization", "Content-Type");
+```
+
+The token travels in the `Authorization` header, so `allowedHeaders` must list it. If your React app runs on another port, change the addresses here.
+
+Before a `POST` or `PATCH` with a token, the browser first sends a question without any token: "may this page do that?" (an `OPTIONS` request). With Spring Security, that question would get `401`, and the browser would never send the real call. So `SecurityConfig` also has this line:
+
+```java
+.cors(Customizer.withDefaults())
+```
+
+It makes Spring Security answer the question using the rules in `CorsConfig`, before the login check.
+
+In React, log in once, keep the token, and send it on each call:
+
+```javascript
+const login = await fetch('http://localhost:8080/api/public/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ username: 'meera', password: 'meera123' }),
+})
+const { token } = await login.json()
+
+const response = await fetch('http://localhost:8080/api/tickets', {
+  headers: { Authorization: `Bearer ${token}` },
+})
+```
+
 ## The tests
 
 | Test class | Tests | Needs |
 |---|---|---|
 | [DatabaseUserDetailsServiceTest](src/test/java/com/bsp/supportassistant/service/DatabaseUserDetailsServiceTest.java) | 2: a known user gets the stored hash and `ROLE_AGENT`; an unknown user is refused | Nothing. The repository is a Mockito mock |
 | [JwtServiceTest](src/test/java/com/bsp/supportassistant/security/JwtServiceTest.java) | 4: a token gives back the user name; a changed token, a token with another secret, and an expired token are refused | Nothing. Plain JUnit |
-| [SecurityDatabaseTests](src/test/java/com/bsp/supportassistant/SecurityDatabaseTests.java) | 6: log in and use the token; a wrong password gives `401`; a name not in the table gives `401`; no token gives `401`; a wrong token gives `401`; the role from the table decides `403` or `200` | Oracle, and `01-tables.sql` and `02-sample-users.sql` |
+| [SecurityDatabaseTests](src/test/java/com/bsp/supportassistant/SecurityDatabaseTests.java) | 8: log in and use the token; a wrong password gives `401`; a name not in the table gives `401`; no token gives `401`; a wrong token gives `401`; the role from the table decides `403` or `200`; the React address may ask before a `PATCH`; another website is refused | Oracle, and `01-tables.sql` and `02-sample-users.sql` |
 
-The six database tests only read `DESK_USERS`, so they leave the table as it was. They set their own secret, so they do not need `JWT_SECRET`.
+The eight database tests only read `DESK_USERS`, so they leave the table as it was. They set their own secret, so they do not need `JWT_SECRET`.
 
 ## Common mistakes
 
@@ -288,7 +324,9 @@ The six database tests only read `DESK_USERS`, so they leave the table as it was
 
 > **Mistake 5: the application does not start, with `Could not resolve placeholder 'JWT_SECRET'`.** Set `JWT_SECRET` in the terminal that runs the application. It must be at least 32 characters, or the first login fails with a `WeakKeyException`.
 
-> **Mistake 6: a good token gives `401`.** Check the header: it must be `Authorization: Bearer TOKEN`, with the word `Bearer` and one space. The token also expires after 30 minutes. Log in again.
+> **Mistake 6: the React page shows `Failed to fetch`, and the Console says `blocked by CORS policy`.** The page is not on an address listed in `CorsConfig`. Vite moves to port 5174 if 5173 is busy. Add the address to `allowedOrigins` and restart the API. A missing `Authorization` in `allowedHeaders` gives the same message.
+
+> **Mistake 7: a good token gives `401`.** Check the header: it must be `Authorization: Bearer TOKEN`, with the word `Bearer` and one space. The token also expires after 30 minutes. Log in again.
 
 ## Practice
 
@@ -311,7 +349,7 @@ The six database tests only read `DESK_USERS`, so they leave the table as it was
 
 ```text
 src/main/java/com/bsp/supportassistant
-├── config/       # SecurityConfig (rules, BCrypt, connects the filter)
+├── config/       # SecurityConfig (rules, BCrypt, connects the filter), CorsConfig
 ├── security/     # JwtService, JwtFilter
 ├── model/        # AppUser
 ├── repository/   # UserRepository
@@ -344,7 +382,7 @@ This project was built on Spring Boot 4.1.1 only.
 
 ## What this project does not do
 
-- It has not been run against Oracle. The six tests that need no database were run. The six database tests were run on a temporary in-memory H2 copy of the same table, not on Oracle. A running server with `curl` was not tried.
+- It has not been run against Oracle. The six tests that need no database were run. The eight database tests were run on a temporary in-memory H2 copy of the same table, not on Oracle. A running server with `curl`, and a real browser with the React app, were not tried. The CORS rules were checked with `MockMvc` only.
 - It does not add, change, or delete users. Users are added with SQL.
 - It does not check that a password is strong, and it does not lock an account after wrong passwords.
 - It reads the user from the table on every request, with one `SELECT` each. It does not cache users.
