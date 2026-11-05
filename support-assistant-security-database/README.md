@@ -1,12 +1,37 @@
 # support-assistant-security-database
 
-The same secured ticket API as [support-assistant-security](../support-assistant-security/), with **one change**: the users are no longer two fixed users in code. They are rows in an **Oracle table**, `DESK_USERS`.
+The same secured ticket API as [support-assistant-security](../support-assistant-security/), with **two changes**:
 
-Everything else stays the same: HTTP Basic authentication, the roles `EMPLOYEE` and `AGENT`, the URL rules, and the BCrypt hashes. Read the first project's README first for those ideas.
+1. The users are no longer two fixed users in code. They are rows in an **Oracle table**, `DESK_USERS`.
+2. The caller logs in **once** and gets a **JWT** (JSON Web Token). Every later request sends the token instead of the user name and password. A filter checks the token.
 
-**Time:** about 30 minutes.
+The roles `EMPLOYEE` and `AGENT`, the URL rules, and the BCrypt hashes stay the same. Read the first project's README first for those ideas.
 
-## What changed
+**Time:** about 45 minutes.
+
+## What is a JWT?
+
+A JWT is a short text that the server hands out after a good login. It holds the user name and an expiry time, and it is **signed** with a secret key that only the server knows. If anyone changes a character, the signature no longer matches and the server refuses the token. It is like a wristband at an event: you show ID once at the gate, then you only show the wristband.
+
+## How a request goes
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant L as LoginController
+    participant F as JwtFilter
+    participant T as TicketController
+    C->>L: POST /api/public/login with user name and password
+    L-->>C: 200 with a token
+    C->>F: GET /api/tickets with Authorization Bearer token
+    F->>F: check the signature and the expiry
+    F->>T: user is logged in
+    T-->>C: 200 with the tickets
+```
+
+**How to read it:** the login is the only time the password is sent. After that `JwtFilter` runs before every other URL rule, reads the token, and tells Spring Security who the user is.
+
+## What changed from project 1
 
 ```mermaid
 flowchart LR
@@ -21,10 +46,11 @@ flowchart LR
 
 | Part | Project 1 | This project |
 |---|---|---|
+| How the caller proves who they are | `Authorization: Basic ...` on every request | `Authorization: Bearer TOKEN` on every request, after one login |
 | Where the users are | `UsersConfig`, in memory | The table `DESK_USERS` |
 | Who finds a user | `InMemoryUserDetailsManager` | `DatabaseUserDetailsService` + `UserRepository` |
 | The stored password | Hashed at start-up with `encode(...)` | Already a BCrypt hash in the table |
-| Added to `pom.xml` | none | `spring-boot-starter-data-jpa`, `ojdbc17` |
+| Added to `pom.xml` | none | `spring-boot-starter-data-jpa`, `ojdbc17`, `jjwt-api`, `jjwt-impl`, `jjwt-jackson` |
 
 The users in the table are the same as before:
 
@@ -33,7 +59,7 @@ The users in the table are the same as before:
 | `meera` | `meera123` | `EMPLOYEE` |
 | `karan` | `karan123` | `AGENT` |
 
-The URLs and who may call them are the same as in project 1.
+The URLs and who may call them are the same as in project 1, plus one new URL: `POST /api/public/login`.
 
 ## Versions
 
@@ -42,6 +68,7 @@ The URLs and who may call them are the same as in project 1.
 | Java | 21 |
 | Spring Boot | 4.1.1 (brings Spring Security 7) |
 | Oracle JDBC driver | `ojdbc17` (comes with Spring Boot) |
+| JWT library (jjwt) | 0.12.6 |
 | Oracle Database | 19c, or 21c Express Edition |
 
 ## Before you build or run
@@ -61,8 +88,9 @@ The URLs and who may call them are the same as in project 1.
    | `DB_USERNAME` | Your Oracle user |
    | `DB_PASSWORD` | Your Oracle password |
    | `DB_URL` | Optional. Default: `jdbc:oracle:thin:@//localhost:1521/XEPDB1` |
+   | `JWT_SECRET` | The key that signs the tokens. At least 32 characters. Choose your own, and do not put it in a file you commit |
 
-   If `DB_PASSWORD` is not set, the application sends the text `${DB_PASSWORD}` to Oracle, and the first database call fails with `ORA-01017`.
+   If `DB_PASSWORD` is not set, the application sends the text `${DB_PASSWORD}` to Oracle, and the first database call fails with `ORA-01017`. If `JWT_SECRET` is not set, the application does not start.
 
 ## Build, test, and run
 
@@ -71,17 +99,31 @@ mvn clean verify
 java -jar target/support-assistant-security-database-0.0.1-SNAPSHOT.jar
 ```
 
-`mvn clean verify` runs six tests. Two use a mock and need no database. Four call Oracle and need the two scripts. You should see `Tests run: 6, Failures: 0, Errors: 0`.
+`mvn clean verify` runs twelve tests. Six need no database: two use a Mockito mock and four test the token code alone. Six call Oracle and need the two scripts. You should see `Tests run: 12, Failures: 0, Errors: 0`.
 
-Then use the same `curl` commands as in project 1, for example:
+Log in, and keep the token:
 
 ```bash
-curl -i -u meera:meera123 http://localhost:8080/api/tickets
+curl -s -X POST http://localhost:8080/api/public/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"meera","password":"meera123"}'
+```
+
+```text
+{"token":"eyJ..."}
+```
+
+Send the token with each request:
+
+```bash
+curl -i http://localhost:8080/api/tickets -H "Authorization: Bearer PASTE_THE_TOKEN_HERE"
 ```
 
 ```text
 HTTP/1.1 200
 ```
+
+Without the header, or with a wrong token, the answer is `401`. A valid token of `meera` on `PATCH /api/tickets/1/status` gives `403`: the token proves who she is, and the table says she is an `EMPLOYEE`.
 
 ## The code
 
@@ -144,18 +186,95 @@ public class DatabaseUserDetailsService implements UserDetailsService {
 
 Spring Security calls `loadUserByUsername` with the name from the `Authorization` header. The method returns the user with the **stored hash**. It does not compare passwords. Spring Security does that next, with the `PasswordEncoder`.
 
-Spring Boot finds this `@Service` because it is a `UserDetailsService` bean, and uses it for HTTP Basic. There is nothing else to connect.
+Spring Boot finds this `@Service` because it is a `UserDetailsService` bean, and uses it when a user logs in. There is nothing else to connect.
 
 If the name is not in the table, the method throws `UsernameNotFoundException`, and the client gets `401`. It is the same answer as for a wrong password, so a caller cannot find out which names exist.
+
+### 4. Making and reading the token
+
+[JwtService](src/main/java/com/bsp/supportassistant/security/JwtService.java) has two methods. The secret and the expiry come from [application.yaml](src/main/resources/application.yaml).
+
+```java
+public String createToken(String username) {
+    Date now = new Date();
+    return Jwts.builder()
+            .subject(username)
+            .issuedAt(now)
+            .expiration(new Date(now.getTime() + expiryMillis))
+            .signWith(key)
+            .compact();
+}
+
+public String readUsername(String token) {
+    return Jwts.parser().verifyWith(key).build()
+            .parseSignedClaims(token).getPayload().getSubject();
+}
+```
+
+`readUsername` throws a `JwtException` if the token was changed, was signed with another key, or has expired. The token holds only the user name. The role is **not** in the token.
+
+### 5. The login URL
+
+[LoginController](src/main/java/com/bsp/supportassistant/api/LoginController.java)
+
+```java
+@PostMapping("/login")
+public LoginResponse login(@RequestBody LoginRequest request) {
+    authenticationManager.authenticate(
+            UsernamePasswordAuthenticationToken.unauthenticated(request.username(), request.password()));
+    return new LoginResponse(jwtService.createToken(request.username()));
+}
+```
+
+`authenticate` calls `DatabaseUserDetailsService` and compares the password with the BCrypt hash. For a wrong login it throws an exception, and the client gets `401`. For a good login the next line makes the token. The URL is under `/api/public`, so it is open to everyone.
+
+### 6. The filter that checks the token
+
+[JwtFilter](src/main/java/com/bsp/supportassistant/security/JwtFilter.java) runs once for every request.
+
+```java
+String header = request.getHeader("Authorization");
+
+if (header != null && header.startsWith("Bearer ")) {
+    try {
+        String username = jwtService.readUsername(header.substring(7));
+        UserDetails user = userDetailsService.loadUserByUsername(username);
+        SecurityContextHolder.getContext().setAuthentication(
+                UsernamePasswordAuthenticationToken.authenticated(user, null, user.getAuthorities()));
+    } catch (JwtException | IllegalArgumentException | AuthenticationException e) {
+        // a bad token: stay not logged in
+    }
+}
+chain.doFilter(request, response);
+```
+
+If the token is good, the filter loads the user from the table and tells Spring Security who is calling. If the token is missing or bad, the filter does nothing, and the URL rules in `SecurityConfig` answer `401` for every URL except `/api/public/**`. The roles are read from the table on each request, so a role change works at once.
+
+### 7. Connecting the filter
+
+[SecurityConfig](src/main/java/com/bsp/supportassistant/config/SecurityConfig.java) has three changes. `httpBasic` is removed, and these are added:
+
+```java
+.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+.exceptionHandling(errors -> errors.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+```
+
+- `addFilterBefore` puts `JwtFilter` ahead of the URL rules.
+- `STATELESS` means the server keeps no login session. Every request brings its own token.
+- The entry point makes "not logged in" answer `401`. Without it, Spring Security answers `403`.
+
+There is also an `AuthenticationManager` bean, which the login URL uses.
 
 ## The tests
 
 | Test class | Tests | Needs |
 |---|---|---|
 | [DatabaseUserDetailsServiceTest](src/test/java/com/bsp/supportassistant/service/DatabaseUserDetailsServiceTest.java) | 2: a known user gets the stored hash and `ROLE_AGENT`; an unknown user is refused | Nothing. The repository is a Mockito mock |
-| [SecurityDatabaseTests](src/test/java/com/bsp/supportassistant/SecurityDatabaseTests.java) | 4: a user from the table logs in; a wrong password gives `401`; a name not in the table gives `401`; the role from the table decides `403` or `200` | Oracle, and `01-tables.sql` and `02-sample-users.sql` |
+| [JwtServiceTest](src/test/java/com/bsp/supportassistant/security/JwtServiceTest.java) | 4: a token gives back the user name; a changed token, a token with another secret, and an expired token are refused | Nothing. Plain JUnit |
+| [SecurityDatabaseTests](src/test/java/com/bsp/supportassistant/SecurityDatabaseTests.java) | 6: log in and use the token; a wrong password gives `401`; a name not in the table gives `401`; no token gives `401`; a wrong token gives `401`; the role from the table decides `403` or `200` | Oracle, and `01-tables.sql` and `02-sample-users.sql` |
 
-The four database tests only read `DESK_USERS`, so they leave the table as it was.
+The six database tests only read `DESK_USERS`, so they leave the table as it was. They set their own secret, so they do not need `JWT_SECRET`.
 
 ## Common mistakes
 
@@ -167,14 +286,22 @@ The four database tests only read `DESK_USERS`, so they leave the table as it wa
 
 > **Mistake 4: a new user cannot log in.** The row was inserted but not committed, and the application cannot see it. Run `COMMIT;` after the `INSERT`.
 
+> **Mistake 5: the application does not start, with `Could not resolve placeholder 'JWT_SECRET'`.** Set `JWT_SECRET` in the terminal that runs the application. It must be at least 32 characters, or the first login fails with a `WeakKeyException`.
+
+> **Mistake 6: a good token gives `401`.** Check the header: it must be `Authorization: Bearer TOKEN`, with the word `Bearer` and one space. The token also expires after 30 minutes. Log in again.
+
 ## Practice
 
-1. Hash a password for a new user, `nisha`. Use `BCryptPasswordEncoder` in a small test or in `jshell`, then `INSERT` the row with the role `AGENT` and `COMMIT`. Log in as `nisha` with `curl -u`. You do not restart the application.
-2. Change the role of `karan` to `EMPLOYEE` with an `UPDATE` and a `COMMIT`. Call `PATCH` as `karan`. What do you see?
-3. Add a test to `DatabaseUserDetailsServiceTest`: a user with the role `EMPLOYEE` gets `ROLE_EMPLOYEE`.
+1. Log in as `meera`. Wait for the token to expire (set `expiry-minutes` to `1` to make it quick). Call `GET /api/tickets` again. What do you see?
+2. Hash a password for a new user, `nisha`. Use `BCryptPasswordEncoder` in a small test or in `jshell`, then `INSERT` the row with the role `AGENT` and `COMMIT`. Log in as `nisha` and call `GET /api/me` with the token. You do not restart the application.
+3. Change the role of `karan` to `EMPLOYEE` with an `UPDATE` and a `COMMIT`. Call `PATCH` with the token that `karan` got **before** the change. What do you see, and why?
+4. Add a test to `DatabaseUserDetailsServiceTest`: a user with the role `EMPLOYEE` gets `ROLE_EMPLOYEE`.
 
 ## Recap
 
+- The caller sends the password once, to `POST /api/public/login`. The answer is a signed token.
+- `JwtFilter` checks the token on every other request and tells Spring Security who the user is. A missing or bad token gives `401`.
+- The token holds the user name only. The role is read from the table on each request.
 - The security filter asks a `UserDetailsService` for the user. Only that part changes when the users move from memory to a table.
 - The table stores a BCrypt hash. Spring Security compares the typed password with it.
 - The role is stored without `ROLE_`, and `roles(...)` adds the prefix.
@@ -184,13 +311,15 @@ The four database tests only read `DESK_USERS`, so they leave the table as it wa
 
 ```text
 src/main/java/com/bsp/supportassistant
-├── config/       # SecurityConfig (rules, BCrypt)
+├── config/       # SecurityConfig (rules, BCrypt, connects the filter)
+├── security/     # JwtService, JwtFilter
 ├── model/        # AppUser
 ├── repository/   # UserRepository
 ├── service/      # DatabaseUserDetailsService
-├── api/          # TicketController, AccountController
-└── dto/          # TicketResponse, CreateTicketRequest, StatusRequest, MeResponse
+├── api/          # TicketController, AccountController, LoginController
+└── dto/          # TicketResponse, CreateTicketRequest, StatusRequest, MeResponse, LoginRequest, LoginResponse
 src/test/java/com/bsp/supportassistant
+├── security/JwtServiceTest.java                   # plain JUnit
 ├── service/DatabaseUserDetailsServiceTest.java    # JUnit with Mockito
 └── SecurityDatabaseTests.java                     # MockMvc, needs Oracle
 db/oracle
@@ -207,6 +336,7 @@ db/oracle
 | Web starter | `spring-boot-starter-webmvc` | `spring-boot-starter-web` |
 | Test starter | `spring-boot-starter-webmvc-test` | `spring-boot-starter-test` |
 | Security test starter | `spring-boot-starter-security-test` | `spring-security-test` (test scope) |
+| jjwt (`jjwt-api`, `jjwt-impl`, `jjwt-jackson`) | `0.12.6` | `0.12.6` (same) |
 | `@AutoConfigureMockMvc` import | `org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc` | `org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc` |
 | Oracle driver | `ojdbc17` | `ojdbc11` |
 
@@ -214,8 +344,10 @@ This project was built on Spring Boot 4.1.1 only.
 
 ## What this project does not do
 
-- It has not been run against Oracle. The two mock tests were run, and the four database tests were run on a temporary in-memory copy of the same table, not on Oracle.
+- It has not been run against Oracle. The six tests that need no database were run. The six database tests were run on a temporary in-memory H2 copy of the same table, not on Oracle. A running server with `curl` was not tried.
 - It does not add, change, or delete users. Users are added with SQL.
 - It does not check that a password is strong, and it does not lock an account after wrong passwords.
 - It reads the user from the table on every request, with one `SELECT` each. It does not cache users.
-- It does not use HTTPS, a session, or a token. See the first project's README.
+- It does not use HTTPS. Without HTTPS the password and the token travel as plain text.
+- It has no logout and no refresh token. A token works until it expires, and it cannot be cancelled before that.
+- The token is sent in the `Authorization` header only. It does not use a cookie.

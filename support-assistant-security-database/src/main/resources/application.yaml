@@ -15,3 +15,10 @@ spring:
       ddl-auto: none
     # Close the database session at the end of the service method, not at the end of the request.
     open-in-view: false
+
+app:
+  jwt:
+    # Read from the environment variable JWT_SECRET. At least 32 characters long.
+    secret: ${JWT_SECRET}
+    # How long a token is valid, in minutes.
+    expiry-minutes: 30
