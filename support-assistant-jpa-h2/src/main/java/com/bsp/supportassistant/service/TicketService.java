@@ -99,4 +99,8 @@ public class TicketService {
     private String upperCase(String value) {
         return value == null ? null : value.toUpperCase();
     }
+
+    public void deleteTicket(long id){
+        ticketRepository.deleteById(id);
+    }
 }

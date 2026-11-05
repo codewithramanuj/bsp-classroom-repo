@@ -55,4 +55,9 @@ public class TicketController {
         ticketService.changeStatus(request.ticketIds(), request.status());
     }
 
+    @DeleteMapping("/{id}")
+    public void deleteTicket(@PathVariable long id){
+        ticketService.deleteTicket(id);
+    }
+
 }
