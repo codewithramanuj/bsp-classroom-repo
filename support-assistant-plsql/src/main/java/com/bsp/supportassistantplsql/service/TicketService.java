@@ -41,6 +41,12 @@ public class TicketService {
 
     // The package filters by status. The priority filter is done here, on the rows that come back.
     public List<TicketResponse> findTickets(String status, String priority){
+        try{
+            Thread.sleep(2000);
+        }
+        catch(Exception e){
+
+        }
         if (status != null){
             status = status.toUpperCase();
         }
@@ -72,5 +78,7 @@ public class TicketService {
             changeStatus(ticketId, newStatus);
         }
     }
+
+  
 
 }

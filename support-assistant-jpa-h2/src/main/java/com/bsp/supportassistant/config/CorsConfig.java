@@ -14,6 +14,6 @@ public class CorsConfig implements WebMvcConfigurer {
         registry.addMapping("/api/**")
                 .allowedOrigins("http://localhost:5173", "http://127.0.0.1:5173")
                 // PATCH is not allowed unless it is listed.
-                .allowedMethods("GET", "POST", "PATCH", "OPTIONS");
+                .allowedMethods("GET", "POST", "PATCH", "OPTIONS","DELETE");
     }
 }
