@@ -1,0 +1,21 @@
+package com.bsp.supportassistant.config;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+// Lets the React app (Vite runs it on port 5173) call this API from the browser.
+// A browser blocks a page on one address from calling an API on another, unless the API allows it.
+@Configuration
+public class CorsConfig implements WebMvcConfigurer {
+
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("/api/**")
+                .allowedOrigins("http://localhost:5173", "http://127.0.0.1:5173")
+                // PATCH and DELETE are not allowed unless they are listed.
+                .allowedMethods("GET", "POST", "PATCH", "DELETE", "OPTIONS")
+                // The React app sends the token in the Authorization header, and the JSON body needs Content-Type.
+                .allowedHeaders("Authorization", "Content-Type");
+    }
+}

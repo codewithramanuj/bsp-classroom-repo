@@ -7,7 +7,7 @@ import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import TicketsPage from './pages/TicketsPage'
 import Header from './components/Header'
-import { Route, Routes } from 'react-router'
+import { Navigate, Route, Routes } from 'react-router'
 import LoginPage from './pages/LoginPage'
 import NotFoundPage from './pages/NotFoundPage'
 
@@ -24,9 +24,11 @@ function App() {
       <Navbar />
       <main className="content">
         <Routes>
-          <Route path="/tickets" element={<TicketsPage />} />
+          <Route path="/" element={<Navigate to="/tickets" replace />} />
+          {/* "/*" lets the Routes inside TicketsPage handle /tickets/new and so on */}
+          <Route path="/tickets/*" element={<TicketsPage />} />
           <Route path="/login" element={<LoginPage />} />
-          {/* <Route path="*" element={<NotFoundPage />} /> */}
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>
       <Footer />

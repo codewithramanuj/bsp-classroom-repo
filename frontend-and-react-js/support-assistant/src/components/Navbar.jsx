@@ -6,7 +6,8 @@ function Navbar() {
    <nav className="navbar">
       <strong>Support Assistant</strong>
       <div>
-        <NavLink to="/tickets">Tickets</NavLink>
+        {/* "end" keeps this link from staying active on /tickets/new */}
+        <NavLink to="/tickets" end>Tickets</NavLink>
         <NavLink to="/tickets/new">New Ticket</NavLink>
         <NavLink to="/login">Login</NavLink>
       </div>

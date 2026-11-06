@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import TicketList from '../components/TicketList'
 import TicketForm from '../components/TicketForm'
-import { BrowserRouter, Route, Routes } from 'react-router'
+import NotFoundPage from './NotFoundPage'
+import { Route, Routes, useNavigate } from 'react-router'
 
 function TicketsPage() {
 
   const API_URL = 'http://localhost:8080/api/v1/tickets'
+  const navigate = useNavigate()
 
   const [tickets, setTickets] = useState([])
   const [loading, setLoading] = useState(true)
@@ -19,6 +21,7 @@ function TicketsPage() {
       }
       const data = await response.json()
       setTickets(data)
+      setError('')
     } catch (err) {
       setError('Could not load the tickets. ' + err.message)
     } finally {
@@ -36,7 +39,8 @@ function TicketsPage() {
       const problem = await response.json()
       throw new Error(problem.message || 'The server answered ' + response.status)
     }
-    loadTickets()
+    await loadTickets()
+    navigate('/tickets') // back to the list after saving
   }
 
 
@@ -49,13 +53,11 @@ function TicketsPage() {
     }
   }
 
-  useEffect(async () => {
-    function load() {
-      loadTickets()
-    }
-    load()
-  }
-    , [])
+  // The function given to useEffect must not be async: React calls what it
+  // returns when the page is left, and a Promise cannot be called.
+  useEffect(() => {
+    loadTickets()
+  }, [])
 
   function handleDelete(id) {
     if (confirm(`Delete Ticket wiyh ID : ${id}?`)) {
@@ -64,29 +66,22 @@ function TicketsPage() {
     }
   }
 
-  if (loading) return <p>Loading tickets...</p>
-  if (error) return <p>{error}</p>
+  // The list shows its own loading and error messages, so the other
+  // routes (such as the form) still work when the tickets cannot be loaded.
+  let listView = <TicketList tickets={tickets} onDelete={handleDelete} />
+  if (loading) listView = <p>Loading tickets...</p>
+  if (error) listView = <p>{error}</p>
 
   return (
-    <>
     <section>
-     <Routes>
-       <Route path="" element={<TicketList tickets={tickets} onDelete={handleDelete} />}/>
-        <Route path="/tickets/new" element={<TicketForm handleCreate={handleCreate} />}/>
+      <Routes>
+        {/* these paths are relative to /tickets/* in App.jsx */}
+        <Route index element={listView} />
+        <Route path="new" element={<TicketForm handleCreate={handleCreate} />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </section>
-      {/* <section>
-        <TicketForm handleCreate={handleCreate} />
-      </section>
-      <section>
-        <h2>My Tickets</h2>
-        <p>{tickets.length} tickets</p>
-        <TicketList tickets={tickets} onDelete={handleDelete} />
-      </section> */}
-    </>
   )
-
-
 }
 
 export default TicketsPage

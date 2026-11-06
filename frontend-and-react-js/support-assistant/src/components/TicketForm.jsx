@@ -1,17 +1,21 @@
 import React, { useState } from 'react'
-import TicketsPage from '../pages/TicketsPage'
 
 function TicketForm({handleCreate}) {
 
     const [title, setTitle] = useState('')
     const [description, setDescription] = useState('')
     const [priority, setPriority] = useState('MEDIUM')
+    const [error, setError] = useState('')
 
-    function handleSubmit(event) {
+    async function handleSubmit(event) {
         event.preventDefault()
+        setError('')
         const newTicket = { title, description, priority }
-        console.log(newTicket)
-        handleCreate(newTicket)
+        try {
+            await handleCreate(newTicket)
+        } catch (err) {
+            setError('Could not save the ticket. ' + err.message)
+        }
     }
 
 
@@ -60,6 +64,8 @@ function TicketForm({handleCreate}) {
             <div>
                 <button type='submit'>Add Ticket</button>
             </div>
+
+            {error && <p>{error}</p>}
 
             <p>Preview: {title} | {description} | {priority}</p>
         </form>

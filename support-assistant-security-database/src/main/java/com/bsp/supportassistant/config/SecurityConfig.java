@@ -30,6 +30,9 @@ public class SecurityConfig {
                 // Read from the top. The first rule that matches the request is the one that applies.
                 .authorizeHttpRequests(rules -> rules
                         .requestMatchers("/api/public/**").permitAll()
+                        // When a request is refused (403) or fails (400, 404), the server forwards to /error to write the answer.
+                        // That forward is not logged in again, so without this line a 403 would turn into a 401.
+                        .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/tickets").hasRole("EMPLOYEE")
                         .requestMatchers(HttpMethod.PATCH, "/api/tickets/*/status").hasRole("AGENT")
                         .anyRequest().authenticated())

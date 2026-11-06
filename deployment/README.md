@@ -51,6 +51,7 @@ You build on your own machine and copy the results to the server. The server nev
 | 4 | [Build the React app for the server](04-build-the-react-app.md) | 25 min |
 | 5 | [nginx: one address for pages and API](05-nginx.md) | 50 min |
 | 6 | [Health check, updates and the checkpoint](06-checkpoint.md) | 35 min |
+| Optional | [Deploy the API as a WAR on a separate Tomcat](07-optional-war-on-tomcat.md). Use it in place of steps 2 and 3 when a shared Tomcat is required | 60 min |
 
 ## Names used in these notes
 

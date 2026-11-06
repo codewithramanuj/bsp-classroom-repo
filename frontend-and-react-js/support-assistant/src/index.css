@@ -4,6 +4,7 @@ body { margin: 0; font-family: sans-serif; }
 
 .navbar { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.5rem; background: #1a5276; color: white; }
 .navbar a { color: white; margin-left: 1rem; text-decoration: none; }
+.navbar a.active { font-weight: bold; text-decoration: underline; }
 
 .content { flex: 1; padding: 1.5rem; }
 

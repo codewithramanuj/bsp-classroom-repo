@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: support-assistant-security-h2
+
+  # An in-memory H2 database. It is created when the application starts and is gone when it stops.
+  datasource:
+    url: jdbc:h2:mem:securitydb;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+
+  jpa:
+    # The table is made by schema.sql. JPA must never create or change it.
+    hibernate:
+      ddl-auto: none
+    # Close the database session at the end of the service method, not at the end of the request.
+    open-in-view: false
+
+  # Runs schema.sql, then data.sql, at every start.
+  sql:
+    init:
+      mode: always
+
+app:
+  jwt:
+    # Read from the environment variable JWT_SECRET. At least 32 characters long.
+    secret: ${JWT_SECRET}
+    # How long a token is valid, in minutes.
+    expiry-minutes: 30

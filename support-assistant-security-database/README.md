@@ -266,6 +266,8 @@ If the token is good, the filter loads the user from the table and tells Spring 
 
 There is also an `AuthenticationManager` bean, which the login URL uses.
 
+The rules also have `.requestMatchers("/error").permitAll()`. When a request is refused (`403`) or fails (`400`, `404`), the server forwards to `/error` to write the answer. That forward does not run the filter again, so without this line a `403` would turn into a `401`.
+
 ### 8. Letting the React app call the API
 
 A browser blocks a page on one address from calling an API on another. The React app runs on `http://localhost:5173` (the Vite default) and this API on `http://localhost:8080`, so the API must allow it. [CorsConfig](src/main/java/com/bsp/supportassistant/config/CorsConfig.java) does that for `/api/**`:

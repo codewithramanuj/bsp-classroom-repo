@@ -156,14 +156,16 @@ export function clearSession() {
 }
 ```
 
-The login address goes next to the tickets address. Add a line to `src/api.js`, so that the file has:
+Two files now need an address from the API: `TicketsPage` and `LoginPage`. Keep the addresses in one file. Create `src/api.js`:
 
 ```javascript
 export const API_URL = import.meta.env.VITE_API_URL + '/api/v1/tickets'
 export const LOGIN_URL = import.meta.env.VITE_API_URL + '/api/public/login'
 ```
 
-**Check:** the page looks the same as before.
+In `src/pages/TicketsPage.jsx`, delete the line `const API_URL = import.meta.env.VITE_API_URL + '/api/v1/tickets'`, and add `import { API_URL } from '../api.js'` with the other imports.
+
+**Check:** the page looks the same as before, and the tickets still load.
 
 ### 5. The login form
 
@@ -197,7 +199,7 @@ function LoginPage({ onLogin }) {
       }
       const data = await response.json()
       onLogin(data.token, username)
-      navigate('/')
+      navigate('/tickets')
     } catch (err) {
       setError('Could not log in. ' + err.message)
     }
@@ -245,7 +247,7 @@ This is the form from note 10 with two fields, and the request from note 11. The
 
 - `type="password"` shows dots in place of the letters.
 - The `401` check comes **before** `response.ok`, so that a wrong login gets its own message and `.json()` is never called on it.
-- The page does not save anything itself. It calls `onLogin(data.token, username)`, a function that `App` gives it, in the same "data down, actions up" way as note 12. Then `navigate('/')` shows the tickets page.
+- The page does not save anything itself. It calls `onLogin(data.token, username)`, a function that `App` gives it, in the same "data down, actions up" way as note 12. Then `navigate('/tickets')` shows the tickets page.
 
 In `src/App.jsx`, make three changes:
 
@@ -268,11 +270,10 @@ The navigation bar needs to change when you log in, so `App` keeps the user name
 
 ```jsx
 import { useState } from 'react'
-import { Routes, Route, useNavigate } from 'react-router'
+import { Routes, Route, Navigate, useNavigate } from 'react-router'
 import Navbar from './components/Navbar.jsx'
 import Footer from './components/Footer.jsx'
 import TicketsPage from './pages/TicketsPage.jsx'
-import NewTicketPage from './pages/NewTicketPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import NotFoundPage from './pages/NotFoundPage.jsx'
 import { saveSession, getUsername, clearSession } from './session.js'
@@ -297,8 +298,8 @@ function App() {
       <Navbar username={username} onLogout={handleLogout} />
       <main className="content">
         <Routes>
-          <Route path="/" element={<TicketsPage />} />
-          <Route path="/new" element={<NewTicketPage />} />
+          <Route path="/" element={<Navigate to="/tickets" replace />} />
+          <Route path="/tickets/*" element={<TicketsPage />} />
           <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
@@ -323,8 +324,8 @@ function Navbar({ username, onLogout }) {
     <nav className="navbar">
       <strong>Support Assistant</strong>
       <div>
-        <NavLink to="/">Tickets</NavLink>
-        <NavLink to="/new">New Ticket</NavLink>
+        <NavLink to="/tickets" end>Tickets</NavLink>
+        <NavLink to="/tickets/new">New Ticket</NavLink>
         {username ? (
           <span>
             Logged in as {username}{' '}
@@ -395,4 +396,4 @@ npm run build
 
 **What the next note adds:** sending the token with each request. The tickets page needs it, as the `401` on the tickets page shows. This API also serves its tickets at `/api/tickets`, not at the `/api/v1/tickets` address that notes 09 to 14 use, so the next part has to deal with that too.
 
-> **Not verified:** the Oracle database was not available, so `support-assistant-security-database` was not run as written. A copy of it in a temporary folder ran on an in-memory H2 database in Oracle mode, with the two SQL scripts run at start-up, a made-up `JWT_SECRET`, and Spring Boot 4.1.1. The Java code was not changed. The React steps were run on macOS with Node.js 22.19.0, Vite 8.3.5, React 19.3.1 and `react-router` 7.18.5, in headless Chrome, next to the code from note 14. A script typed into the form: a wrong password gave `Could not log in. Wrong user name or password.` and saved nothing; the good login moved to `/`, saved `token` and `username`, and the bar showed `Logged in as meera`; after a reload the bar still showed it; **Logout** emptied the storage and moved to `/login`. The Console lines in step 2 and step 3 were run as a script with the same calls, and gave a token with three parts, the `{sub, iat, exp}` object, `null` after `removeItem`, and `401` with an empty body. The reading of the middle piece with `atob` works for these tokens. A token piece that has the characters `-` or `_` would need more code, and was not tried. The tickets page showed `The server answered 401` with the login API running. Five common mistakes were tried and the quoted messages are what appeared: no `preventDefault`, `.json()` on a `401`, saving the object, the other API on port 8080, and no API running. The `?` address was seen, but whether the password would show in the address with named fields was not tried. The `ping` address answered `{"status":"up"}`. A second tab, the Application tab view, and the practice tasks were not tried by me. The login form was not styled with Bootstrap. `support-assistant-plsql` was not run, because it needs Oracle. Only Chrome was used.
+> **Not verified:** the Oracle database was not available, so `support-assistant-security-database` was not run as written. A copy of it in a temporary folder ran on an in-memory H2 database in Oracle mode, with the two SQL scripts run at start-up, a made-up `JWT_SECRET`, and Spring Boot 4.1.1. The Java code was not changed. The React steps were run on macOS with Node.js 22.19.0, Vite 8.3.5, React 19.3.1 and `react-router` 7.18.5, in headless Chrome, next to the code from note 14. A script typed into the form: a wrong password gave `Could not log in. Wrong user name or password.` and saved nothing; the good login moved to `/`, saved `token` and `username`, and the bar showed `Logged in as meera`; after a reload the bar still showed it; **Logout** emptied the storage and moved to `/login`. The Console lines in step 2 and step 3 were run as a script with the same calls, and gave a token with three parts, the `{sub, iat, exp}` object, `null` after `removeItem`, and `401` with an empty body. The reading of the middle piece with `atob` works for these tokens. A token piece that has the characters `-` or `_` would need more code, and was not tried. The tickets page showed `The server answered 401` with the login API running. Five common mistakes were tried and the quoted messages are what appeared: no `preventDefault`, `.json()` on a `401`, saving the object, the other API on port 8080, and no API running. The `?` address was seen, but whether the password would show in the address with named fields was not tried. The `ping` address answered `{"status":"up"}`. A second tab, the Application tab view, and the practice tasks were not tried by me. The login form was not styled with Bootstrap. `support-assistant-plsql` was not run, because it needs Oracle. The note was first run with the routes `/` and `/new`. After note 14 changed to `/tickets` and `/tickets/new`, the final files of this note (`App.jsx`, `Navbar.jsx`, `LoginPage.jsx` with `navigate('/tickets')`) were run again: `/` moved to `/tickets`, a login as `meera` led to `/tickets`, and a logout led to `/login`. The step 4 change of `TicketsPage` (the `API_URL` import from `src/api.js`) was run only as part of the final files, and its own **Check** was not run. Only Chrome was used.
