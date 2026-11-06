@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import TicketList from '../components/TicketList'
+import TicketForm from '../components/TicketForm'
 
 function TicketsPage() {
 
@@ -13,7 +14,7 @@ function TicketsPage() {
     try {
       const response = await fetch(API_URL)
       if (!response.ok) {
-        throw new Error('The server answered ' + response.status)
+        throw new Error(`The server answered ` + response.status)
       }
       const data = await response.json()
       setTickets(data)
@@ -24,31 +25,58 @@ function TicketsPage() {
     }
   }
 
-  async function deleteTicket(id) {
-    const response = await fetch(API_URL + '/' + id, {
-      method: 'DELETE'
+  async function handleCreate(newTicket) {
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newTicket),
     })
-     if (!response.ok) {
-        throw new Error('The server answered ' + response.status)
-      }
-      loadTickets()
+    if (!response.ok) {
+      const problem = await response.json()
+      throw new Error(problem.message || 'The server answered ' + response.status)
+    }
+    loadTickets()
   }
 
-  useEffect(loadTickets, [])
+
+  async function deleteTicket(id) {
+    const response = await fetch(`${API_URL}/${id}`, {
+      method: 'DELETE'
+    })
+    if (response.status != 204) {
+      throw new Error('The server answered ' + response.status)
+    }
+  }
+
+  useEffect(async () => {
+    function load() {
+      loadTickets()
+    }
+    load()
+  }
+    , [])
 
   function handleDelete(id) {
-    deleteTicket(id)
+    if (confirm(`Delete Ticket wiyh ID : ${id}?`)) {
+      deleteTicket(id)
+      loadTickets()
+    }
   }
 
   if (loading) return <p>Loading tickets...</p>
   if (error) return <p>{error}</p>
 
   return (
-    <section>
-      <h2>My Tickets</h2>
-      <p>{tickets.length} tickets</p>
-      <TicketList tickets={tickets} onDelete={handleDelete}/>
-    </section>
+    <>
+      <section>
+        <TicketForm handleCreate={handleCreate} />
+      </section>
+      <section>
+        <h2>My Tickets</h2>
+        <p>{tickets.length} tickets</p>
+        <TicketList tickets={tickets} onDelete={handleDelete} />
+      </section>
+    </>
   )
 
 
