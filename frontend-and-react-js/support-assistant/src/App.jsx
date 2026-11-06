@@ -7,10 +7,13 @@ import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import TicketsPage from './pages/TicketsPage'
 import Header from './components/Header'
+import { Route, Routes } from 'react-router'
+import LoginPage from './pages/LoginPage'
+import NotFoundPage from './pages/NotFoundPage'
 
 function App() {
 
-  
+
 
   return (
     <>
@@ -20,7 +23,11 @@ function App() {
      <div className="app">
       <Navbar />
       <main className="content">
-        <TicketsPage />
+        <Routes>
+          <Route path="/tickets" element={<TicketsPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          {/* <Route path="*" element={<NotFoundPage />} /> */}
+        </Routes>
       </main>
       <Footer />
     </div>
