@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import TicketList from '../components/TicketList'
 import TicketForm from '../components/TicketForm'
+import { BrowserRouter, Route, Routes } from 'react-router'
 
 function TicketsPage() {
 
@@ -68,14 +69,20 @@ function TicketsPage() {
 
   return (
     <>
-      <section>
+    <section>
+     <Routes>
+       <Route path="" element={<TicketList tickets={tickets} onDelete={handleDelete} />}/>
+        <Route path="/tickets/new" element={<TicketForm handleCreate={handleCreate} />}/>
+      </Routes>
+    </section>
+      {/* <section>
         <TicketForm handleCreate={handleCreate} />
       </section>
       <section>
         <h2>My Tickets</h2>
         <p>{tickets.length} tickets</p>
         <TicketList tickets={tickets} onDelete={handleDelete} />
-      </section>
+      </section> */}
     </>
   )
 
